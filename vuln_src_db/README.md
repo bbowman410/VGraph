@@ -1,4 +1,21 @@
-gen_commit_files.sh: This generates commit files for all cloned github repositories in the repos directory
+# Usage
 
-gen_src_files.sh: This generates a vuln and patch copy of all src files for associated with CVEs for the commits returned by previous script
+### Step 1: Clone Github repositories
 
+To modify the repostories which are cloned, simply update the repos.config file with a new line containing: ``` <name> <url> ```
+
+```
+./gen_repos.sh
+```
+
+### Step 2: Generate commit files containing CVE numbers
+
+```
+./gen_commit_files.sh
+```
+
+### Step 3: Generate source code files from commits
+
+```
+./gen_src_files.sh:
+```
