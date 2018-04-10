@@ -8,7 +8,7 @@ while read line; do
     #echo $name
     #echo $id
     #echo $path
-    if grep -Fxq $name vuln_db/src_files/$path/../funcnames; then
+    if grep -Fxq $name vuln_src_db/src_files/$path/../funcnames; then
         echo "Generating CPG for $name"
         mkdir -p vuln_graph_db/$path/
         python gen_cpg.py $id vuln_graph_db/$path/$name.gpickle
