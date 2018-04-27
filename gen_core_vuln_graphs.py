@@ -62,8 +62,13 @@ nCVG_important_nodes_output_file = in_out_dir + function_name + "_nfg.important_
 V = nx.read_gpickle(vuln_function)
 P = nx.read_gpickle(patch_function)
 
+# Keep list of important nodes for graph matching prioritization
+pCVG_important_nodes = []
+nCVG_important_nodes = []
+
 # If we don't do this it takes WAY to long to do the heuristic match
 if len(V.nodes) > 2000 or len(P.nodes) > 2000:
+    print "ERROR: CPG too big (%s)" % vuln_function
     print_statistics(vuln_function, len(V.nodes), len(P.nodes),0,0,0)
     exit()
 
@@ -85,15 +90,18 @@ if len(node_mapping) == len(V.nodes):
     # This could probably be modified to use a heuristic to include only the nodes
     # which are related to the new nodes in patch graph in some way.
     pCVG = V.copy()
-    pCVG_important_nodes = pCVG.nodes
+    for n in pCVG.nodes:
+        pCVG_important_nodes.append(n)
 else:
     pCVG = nx.Graph()
     # positive Core Vulnerability Graph (pCVG) includes all nodes in V that were removed in P
     for v_node in set(V.nodes).difference(set(node_mapping.keys())):
         pCVG.add_node(v_node)
         pCVG.node[v_node]['type'] = V.node[v_node]['type']
+        pCVG.node[v_node]['code'] = V.node[v_node]['code']
     # We keep track of the core nodes for our graph matching algorithm later
-    pCVG_important_nodes = pCVG.nodes
+    for n in pCVG.nodes:
+        pCVG_important_nodes.append(n)
 
     # expand graph to gain some context
     expand_graph(pCVG, V, 2)
@@ -103,23 +111,35 @@ else:
 
 ################## nCVG GENERATION ############################
 if len(node_mapping) == len(P.nodes):
-    # All P nodes are shared with V.  So our nCVG is empty
-    nCVG = nx.Graph()
-    nCVG_important_nodes = nCVG.nodes
+    # All P nodes are shared with V.  So all nodes in P are negative core graph
+    # as with above, this could probably be modified to use heuristic to only
+    # include nodes which are related to the nodes removed from V
+    nCVG = P.copy()
+    for n in nCVG.nodes:
+        nCVG_important_nodes.append(n)
 else:
     nCVG = nx.Graph()
     # negative Core Vulnerability Graph (nCVG) includes all nodes in P that were missing in V
     for p_node in set(P.nodes).difference(set([nid for (nid,score) in node_mapping.values()])):
         nCVG.add_node(p_node)
         nCVG.node[p_node]['type'] = P.node[p_node]['type']
+        nCVG.node[p_node]['code'] = P.node[p_node]['code']
     # We keep track of the core nodes for our graph matching algorithm later
-    nCVG_important_nodes = nCVG.nodes
+    for n in nCVG.nodes:
+        nCVG_important_nodes.append(n)
 
     # expand graph to gain some context
     expand_graph(nCVG, P, 2)
 
     # Add all edges to our graph nodes
     add_edges(nCVG, P)
+
+
+# Last minute sanity check to make sure our representation will work
+if len(pCVG.nodes) < 20:
+    print "ERROR: pCVG too small (%s)" % vuln_function
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(node_mapping), len(pCVG.nodes),len(nCVG.nodes) )
+    exit()
 
 # Write core graph files
 nx.write_gpickle(pCVG, pCVG_output_file)
