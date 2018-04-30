@@ -5,14 +5,14 @@ mkdir -p repos
 
 
 while read line; do
-    echo "Checking out $line"
     name=`echo $line | awk '{print $1}'`
     url=`echo $line | awk '{print $2}'`
     echo $name
     echo $url
     if [ -d "./repos/$name" ]; then
-        echo "Removing previous checkout..."
-        rm -rf ./repos/$name
+        echo "Repository already checked out...skipping."
+        #rm -rf ./repos/$name
+        continue
     fi
     mkdir ./repos/$name
     echo "Checking out $name at $url..."
