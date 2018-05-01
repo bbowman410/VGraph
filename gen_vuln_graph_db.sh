@@ -5,9 +5,9 @@ while read line; do
     name=`echo $line | awk '{print $1}'`
     id=`echo $line | awk '{print $2}'`
     path=`echo $line | awk '{print $3}' | grep -E -o "/[a-zA-Z0-9_-]+/CVE-[0-9]*-[0-9]*/(patch|vuln)/"`
-    #echo $name
-    #echo $id
-    #echo $path
+    echo $name
+    echo $id
+    echo $path
     if grep -Fxq $name vuln_src_db/src_files/$path/../funcnames; then
         echo "Generating CPG for $name"
         mkdir -p vuln_graph_db/$path/

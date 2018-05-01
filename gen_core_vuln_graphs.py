@@ -136,7 +136,7 @@ else:
 
 
 # Last minute sanity check to make sure our representation will work
-if len(pCVG.nodes) < 20:
+if len(pCVG.nodes) < 50 or len(pCVG_important_nodes) < 10:
     print "ERROR: pCVG too small (%s)" % vuln_function
     print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(node_mapping), len(pCVG.nodes),len(nCVG.nodes) )
     exit()

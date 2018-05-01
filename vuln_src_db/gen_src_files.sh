@@ -22,36 +22,75 @@ for commit_file in `ls commits`; do
     codebase=`echo $commit_file | awk -F'.' '{print $1}'`
     cd repos/$codebase/
     for c in $commits; do
+        echo "Processing commit $c"
         git show $c > ../../scratchwork
         cve=`cat ../../scratchwork | grep -o "CVE-[0-9]*-[0-9]*" | head -1`
-        file_names=`cat ../../scratchwork | grep "diff --git"`
-        num_file_names=`cat ../../scratchwork | grep "diff --git" | wc -l`
-        if [ $num_file_names != 1 ]; then
-            echo "More than one file modified...skipping for now..."
-            continue
-        fi
+        curr_file=""
+        curr_funcs=""
+        curr_vuln_id=""
+        curr_patch_id=""
 
-        echo $file_names
-        file_name=`echo $file_names | grep -o -m 1 "[a-zA-Z0-9_]*\.c[pp]*" | head -1`
-        if [ "$file_name" == "" ]; then
-            echo "$file_names: File must not be C/C++ file... Skipping"
-            continue
-        fi
+        while read line; do
 
-        function_names=`cat ../../scratchwork | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | uniq`
-        file_ids=`cat ../../scratchwork | grep -o "^index [a-z0-9]*\.\.[a-z0-9]*"`
-        vuln_id=`echo $file_ids | awk '{print $2}' | tr '..' ' ' | awk '{print $1}'`
-        patch_id=`echo $file_ids | awk '{print $2}' | tr '..' ' ' | awk '{print $2}'`
-        echo $cve
-        echo $file_name
-        echo $file_ids
-        echo "Vuln id: $vuln_id"
-        echo "Patch id: $patch_id"
-        mkdir -p ../../src_files/$codebase/$cve/vuln
-        mkdir -p ../../src_files/$codebase/$cve/patch
-        git show $vuln_id > ../../src_files/$codebase/$cve/vuln/$file_name
-        git show $patch_id > ../../src_files/$codebase/$cve/patch/$file_name
-        echo "$function_names" > ../../src_files/$codebase/$cve/funcnames
+            # consume each line of the Github commit.
+            # commits will follow this structure:
+            # (1) diff --git a/path/file b/path/file
+            # (2) index <hash>..<hash> number
+            # (3) @@ location $$ function
+
+            # Repeat 3 for each modification in file
+            # Repeat 1,2 for each file in commit
+            if [ "`echo $line | grep "diff --git"`" != "" ]; then
+                echo "Found diff git line: $line"
+                if [ "$curr_file" != "" ] && [ "$curr_funcs" != "" ]; then
+                    # signals the end of previous file
+                    # we need to write results
+                    echo "$cve"
+                    echo "$codebase"
+                    echo "Writing results for $curr_file"
+                    echo "Writing results for $curr_funcs"
+                    echo "Writing vuln id: $curr_vuln_id"
+                    echo "Writing patch id: $curr_patch_id"
+                    mkdir -p ../../src_files/$codebase/$cve/vuln
+                    mkdir -p ../../src_files/$codebase/$cve/patch
+                    git show $curr_vuln_id > ../../src_files/$codebase/$cve/vuln/$curr_file
+                    git show $curr_patch_id > ../../src_files/$codebase/$cve/patch/$curr_file
+                    echo "$curr_funcs" | tr ' ' '\n' | uniq > ../../src_files/$codebase/$cve/funcnames
+                fi
+                # Set new filename.  If its not a C/C++ file then curr_file will be blank and no processing will occur
+                curr_file=`echo $line | grep -o -m 1 "[a-zA-Z0-9_]*\.c[pp]*" | uniq`
+                curr_funcs=""
+                curr_vuln_id=""
+                curr_patch_id=""
+            elif [ "$curr_file" != "" ] && [ "`echo $line | grep -o "^index [a-z0-9]*\.\.[a-z0-9]*"`" != "" ]; then
+                echo "Found index line: $line"
+                curr_vuln_id=`echo $line | grep -o "^index [a-z0-9]*\.\.[a-z0-9]*" | awk '{print $2}' | tr '..' ' ' | awk '{print $1}'`
+                curr_patch_id=`echo $line | grep -o "^index [a-z0-9]*\.\.[a-z0-9]*" | awk '{print $2}' | tr '..' ' ' | awk '{print $2}'`
+                echo $curr_vuln_id
+                echo $curr_patch_id
+            elif [ "$curr_file" != "" ] && [ "`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | uniq`" != "" ]; then
+                func_name="`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | uniq`"
+                curr_funcs="${curr_funcs}${func_name} "
+                echo "Found function names: $func_name"
+            else
+                #echo "Skipping line: $line"
+                continue
+            fi
+        done < <(cat ../../scratchwork)
+
+        if [ "$curr_file" != "" ] && [ "$curr_funcs" != "" ] && [ "$curr_vuln_id" != "" ] && [ "$curr_patch_id" != "" ]; then
+            echo "Writing results for $curr_file"
+            echo "$cve"
+            echo "$codebase"
+            echo "Writing results for $curr_funcs"
+            echo "Writing vuln id: $curr_vuln_id"
+            echo "Writing patch id: $curr_patch_id"
+            mkdir -p ../../src_files/$codebase/$cve/vuln
+            mkdir -p ../../src_files/$codebase/$cve/patch
+            git show $curr_vuln_id > ../../src_files/$codebase/$cve/vuln/$curr_file
+            git show $curr_patch_id > ../../src_files/$codebase/$cve/patch/$curr_file
+            echo "$curr_funcs" | tr ' ' '\n' | uniq > ../../src_files/$codebase/$cve/funcnames
+        fi
     done
     cd ../../
 done
