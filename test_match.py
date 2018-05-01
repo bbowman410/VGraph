@@ -1,5 +1,5 @@
 import networkx as nx
-import tale2 as tale
+import tale
 import sys
 import os
 import pickle as pkl
@@ -8,7 +8,7 @@ import random
 
 if __name__ == "__main__":
     cve_dir=sys.argv[1]
-    target_dir=sys.argv[2]
+    target_file=sys.argv[2]
 
     print cve_dir
     print target_file

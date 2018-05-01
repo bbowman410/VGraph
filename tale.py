@@ -27,13 +27,6 @@ def node_nh_idx(g, n):
 
 
 def match(query_graph, target_graph, query_nh_index, target_nh_index, important_nodes):
-    more_important_nodes = find_important_nodes(query_graph)
-    for n in more_important_nodes:
-        print "Found graph node not in important node! adding..."
-        if n not in important_nodes:
-            important_nodes.append(n)
-    #important_nodes = more_important_nodes
-
     weight_mappings = match_important_nodes(important_nodes, query_nh_index, target_nh_index)
 
     res = grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mappings)
