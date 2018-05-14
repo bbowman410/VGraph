@@ -12,12 +12,16 @@ while read line; do
     #echo $path
     if grep -Fxq $name vuln_src_db/src_files/$path/../funcnames; then
         echo "Generating CPG for $name"
-        mkdir -p vuln_graph_db/$path/
-        python gen_cpg.py $id vuln_graph_db/$path/$name.gpickle &
-        while [ "`jobs | wc -l`" -gt "$MAX_NUM_PROCS" ]; do
-            echo "Waiting for jobs to finish..."
-            sleep 0.5
-        done
+        if [ -f vuln_graph_db/$path/$name.gpickle ]; then
+            echo "CPG already exists...skipping"
+        else
+            mkdir -p vuln_graph_db/$path/
+            python gen_cpg.py $id vuln_graph_db/$path/$name.gpickle &
+            while [ "`jobs | wc -l`" -gt "$MAX_NUM_PROCS" ]; do
+                echo "Waiting for jobs to finish..."
+                sleep 0.5
+            done
+        fi
     fi
 
 done < scratchwork.tmp

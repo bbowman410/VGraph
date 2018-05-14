@@ -14,6 +14,9 @@ def expand_graph(small_graph, big_graph, num_hops):
             if n not in small_graph.nodes:
                 small_graph.add_node(n)
                 small_graph.node[n]['type'] = big_graph.node[n]['type']
+                if 'code' in big_graph.node[n]:
+                    small_graph.node[n]['code'] = big_graph.node[n]['code']
+
 
 
 def print_statistics(file_path, v_size, p_size, num_shared_nodes, pcvg_size, ncvg_size):
@@ -58,6 +61,8 @@ pCVG_important_nodes_output_file = in_out_dir + function_name + "_pfg.important_
 nCVG_output_file = in_out_dir + function_name + "_nfg.gpickle"
 nCVG_important_nodes_output_file = in_out_dir + function_name + "_nfg.important_nodes"
 
+CVG_size_file = in_out_dir + function_name + "_size"
+
 # Read graphs
 V = nx.read_gpickle(vuln_function)
 P = nx.read_gpickle(patch_function)
@@ -81,6 +86,7 @@ node_mapping = heuristic_match(V,P)
 if len(V.nodes) == len(P.nodes) == len(node_mapping):
     # This case doesn't make sense.  Clearly this vulnerability does not show manifest itself
     # in a way that will work with our method.
+    print "ERROR: V == P (%s)" % vuln_function
     print_statistics(vuln_function, len(V.nodes), len(P.nodes),len(node_mapping), 0, 0)
     exit()
 
@@ -136,7 +142,7 @@ else:
 
 
 # Last minute sanity check to make sure our representation will work
-if len(pCVG.nodes) < 50 or len(pCVG_important_nodes) < 10:
+if len(pCVG.nodes) < 20:
     print "ERROR: pCVG too small (%s)" % vuln_function
     print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(node_mapping), len(pCVG.nodes),len(nCVG.nodes) )
     exit()
@@ -148,6 +154,10 @@ nx.write_gpickle(nCVG, nCVG_output_file)
 # Write important nodes
 pkl.dump(pCVG_important_nodes, open(pCVG_important_nodes_output_file, 'wb'))
 pkl.dump(nCVG_important_nodes, open(nCVG_important_nodes_output_file, 'wb'))
+
+# Write size
+CVG_size = (len(V.node) + len(P.nodes)) / 2
+pkl.dump(CVG_size, open(CVG_size_file, 'wb'))
 
 print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(node_mapping), len(pCVG.nodes), len(nCVG.nodes))
 

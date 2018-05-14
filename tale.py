@@ -1,4 +1,5 @@
 import networkx as nx
+from difflib import SequenceMatcher
 
 
 def generate_nh_index(g):
@@ -10,6 +11,8 @@ def generate_nh_index(g):
 def node_nh_idx(g, n):
     d = {}
     d['label'] = g.node[n]['type']
+    if 'code' in g.node[n]:
+        d['code'] = g.node[n]['code']
     d['degree'] = g.degree(n)
     d['nbConnection'] = 0
     d['nbArray'] = []
@@ -251,6 +254,14 @@ def match_and_score_nhi(query_nhi, target_nhi):
     # This function will simultaneously match and score two neighborhood indices
     if query_nhi['label'] != target_nhi['label']:
         return (False, 0)
+
+    if 'code' in query_nhi.keys() and 'code' in target_nhi.keys():
+        # If highly similar code, short circuit other checks
+        if SequenceMatcher(None, query_nhi['code'], target_nhi['code']).ratio() > 0.5:
+            return (True, 2)
+        else:
+            return (False, 0)
+
 
     num_allowed_misses = int(rho * query_nhi['degree'])
 

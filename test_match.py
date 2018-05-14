@@ -26,6 +26,7 @@ if __name__ == "__main__":
         cvgs[f]['pCVG'] = nx.read_gpickle("%s/%s_pfg.gpickle" % (cve_dir,f))
         cvgs[f]['pCVG_nhi'] = tale.generate_nh_index(cvgs[f]['pCVG'])
         cvgs[f]['pCVG_important_nodes'] = pkl.load(open("%s/%s_pfg.important_nodes" % (cve_dir,f), 'rb'))
+        cvgs[f]['pCVG_size'] = pkl.load(open("%s/%s_size" % (cve_dir,f), 'rb'))
         cvgs[f]['nCVG'] = nx.read_gpickle("%s/%s_nfg.gpickle" % (cve_dir,f))
         cvgs[f]['nCVG_nhi'] = tale.generate_nh_index(cvgs[f]['nCVG'])
         cvgs[f]['nCVG_important_nodes'] = pkl.load(open("%s/%s_nfg.important_nodes" % (cve_dir,f), 'rb'))
@@ -34,11 +35,22 @@ if __name__ == "__main__":
     target = nx.read_gpickle(target_file)
     target_nhi = tale.generate_nh_index(target)
     for f in cvgs.keys():
-        pos_match_score, pos_node_mapping = tale.match(cvgs[f]['pCVG'], target, cvgs[f]['pCVG_nhi'], target_nhi, cvgs[f]['pCVG_important_nodes'])
+        if abs(len(target.nodes) - cvgs[f]['pCVG_size']) > 3*cvgs[f]['pCVG_size']:
+            print "Size difference too big"
+            print "%s %s %d %d %d" % (f, target_file, 0, 0, 0)
+        else:
+            pos_match_score, pos_node_mapping = tale.match(cvgs[f]['pCVG'], target, cvgs[f]['pCVG_nhi'], target_nhi, cvgs[f]['pCVG_important_nodes'])
 
-        neg_match_score, neg_node_mapping = tale.match(cvgs[f]['nCVG'], target, cvgs[f]['nCVG_nhi'], target_nhi, cvgs[f]['nCVG_important_nodes'])
+            neg_match_score, neg_node_mapping = tale.match(cvgs[f]['nCVG'], target, cvgs[f]['nCVG_nhi'], target_nhi, cvgs[f]['nCVG_important_nodes'])
 
-        print "%s %s %d %d" % (f, target_file, pos_match_score, neg_match_score)
+            important_node_match = 0
+            for imp_node in cvgs[f]['pCVG_important_nodes']:
+                if imp_node in pos_node_mapping.keys():
+                    important_node_match = important_node_match + pos_node_mapping[imp_node][1]
+
+            important_node_match = (important_node_match * 100) / (2 * len(cvgs[f]['pCVG_important_nodes']))
+
+            print "%s %s %d %d %d" % (f, target_file, pos_match_score, neg_match_score, important_node_match)
 
 
 
