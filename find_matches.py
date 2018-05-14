@@ -68,11 +68,13 @@ def load_query_graphs(query_files_list):
 	    pCVG_nhi = tale.generate_nh_index(pCVG)
             pCVG_important_nodes = pkl.load(open(t[1] + "_pfg.important_nodes", 'rb'))
             nCVG_important_nodes = pkl.load(open(t[1] + "_nfg.important_nodes", 'rb'))
+            pCVG_size = pkl.load(open(t[1] + "_size", 'rb'))
 
             query_graphs[cve].append({
                 "func_name":t[0],
                 "pCVG":pCVG,
                 "pCVG_important_nodes":pCVG_important_nodes,
+		"pCVG_size":pCVG_size,
 		"pCVG_nhi":pCVG_nhi,
                 "nCVG":nCVG,
                 "nCVG_important_nodes":nCVG_important_nodes})
@@ -142,9 +144,14 @@ def main(args):
 	    idx_to_file.clear()
             # build work q
             for target_file, target_graph in target_graphs.iteritems(): # this should be only 10 for testing...
-                work_q.put((i,cvg['pCVG'],target_graph[0], cvg['pCVG_nhi'], target_graph[1], cvg['pCVG_important_nodes']))
-    	        idx_to_file[i] = target_file
-                i = i + 1
+		if abs(cvg['pCVG_size'] - len(target_graph[0].nodes)) > 3 * cvg['pCVG_size']:
+                    print "pCVG\t%s\t%s\t%s\t%d" % (cve, cvg['func_name'], target_file, 0)
+		    idx_to_file[i] = target_file
+		    i=i+1
+		else:
+                    work_q.put((i,cvg['pCVG'],target_graph[0], cvg['pCVG_nhi'], target_graph[1], cvg['pCVG_important_nodes']))
+    	            idx_to_file[i] = target_file
+                    i = i + 1
 
 	    # wait for work_q to drain
 	    while work_q.qsize() > 0:
