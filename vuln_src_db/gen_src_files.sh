@@ -3,7 +3,7 @@
 # and inspect further the commit
 
 # We will skip this commit (and in effect this CVE) if:
-#   - there are more than one files covered in the commit
+#   - there are more than 5 files covered in the commit
 #   - The file name modified is not a C/C++ fle
 
 # If we make it past the previous two checks, we will extract
@@ -25,6 +25,12 @@ for commit_file in `ls commits`; do
         echo "Processing commit $c"
         git show $c > ../../scratchwork
         cve=`cat ../../scratchwork | grep -o "CVE-[0-9]*-[0-9]*" | head -1`
+        num_files_covered=`grep "^diff --git" ../../scratchwork | wc -l`
+        if [ $num_files_covered -gt 5 ] || [ $num_files_covered -eq 0 ]; then
+            echo "This commit covers $num_files_covered files...skipping it."
+            continue
+        fi
+
         curr_file=""
         curr_funcs=""
         curr_vuln_id=""
@@ -40,7 +46,7 @@ for commit_file in `ls commits`; do
 
             # Repeat 3 for each modification in file
             # Repeat 1,2 for each file in commit
-            if [ "`echo $line | grep "diff --git"`" != "" ]; then
+            if [ "`echo $line | grep "^diff --git"`" != "" ]; then
                 echo "Found diff git line: $line"
                 if [ "$curr_file" != "" ] && [ "$curr_funcs" != "" ]; then
                     # signals the end of previous file

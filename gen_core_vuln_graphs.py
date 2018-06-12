@@ -39,8 +39,10 @@ def heuristic_match(src_graph, dst_graph):
             if dst_node in [ n for (n,s) in node_mapping.values() ]:
                 continue # we don't want to double match
             if src_graph.node[src_node]['code'] == dst_graph.node[dst_node]['code'] and src_graph.node[src_node]['type'] == dst_graph.node[dst_node]['type']:
-                node_mapping[src_node] = (dst_node, 2) # This is how TALE repors scores.. so just using this format for convenience
-                break
+                # OK, this looks like the same node cuz it has same source code.  BUT we are going to consider it different if it has different degree
+                if src_graph.degree(src_node) == dst_graph.degree(dst_node):
+                    node_mapping[src_node] = (dst_node, 2) # This is how TALE repors scores.. so just using this format for convenience
+                    break
 
     return node_mapping
 
@@ -60,6 +62,8 @@ pCVG_important_nodes_output_file = in_out_dir + function_name + "_pfg.important_
 
 nCVG_output_file = in_out_dir + function_name + "_nfg.gpickle"
 nCVG_important_nodes_output_file = in_out_dir + function_name + "_nfg.important_nodes"
+
+context_mapping_output_file = in_out_dir + function_name + ".context_mapping"
 
 CVG_size_file = in_out_dir + function_name + "_size"
 
@@ -154,6 +158,9 @@ nx.write_gpickle(nCVG, nCVG_output_file)
 # Write important nodes
 pkl.dump(pCVG_important_nodes, open(pCVG_important_nodes_output_file, 'wb'))
 pkl.dump(nCVG_important_nodes, open(nCVG_important_nodes_output_file, 'wb'))
+
+# Write mapping of pCVG to nCVG so we know what nodes are context nodes
+pkl.dump(node_mapping, open(context_mapping_output_file, 'wb'))
 
 # Write size
 CVG_size = (len(V.node) + len(P.nodes)) / 2

@@ -29,10 +29,12 @@ def node_nh_idx(g, n):
     return d
 
 
-def match(query_graph, target_graph, query_nh_index, target_nh_index, important_nodes):
-    weight_mappings = match_important_nodes(important_nodes, query_nh_index, target_nh_index)
+def match(query_graph, target_graph, query_nh_index, target_nh_index, important_nodes, prematched_nodes = {}):
+    # there should never be a important node that is prematched... so don't need to do
+    # anything about that here.
+    weight_mappings = match_important_nodes(important_nodes, query_nh_index, target_nh_index, prematched_nodes)
 
-    res = grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mappings)
+    res = grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mappings, prematched_nodes)
 
 
     # Each match can have a weight (aka score) of at most 2
@@ -43,13 +45,14 @@ def match(query_graph, target_graph, query_nh_index, target_nh_index, important_
 
     real_score = (achieved_score * 100) / total_possible_score
 
+
     return (real_score, res)
 
 
 
-def grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mapping):
+def grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mapping, prematched_nodes):
     processing_queue = []
-    final_results = {}
+    final_results = prematched_nodes # this will be an empty dict if no premateched nodes
     # Add our important nodes to the processing queue
     # we build weight_mapping_helper which will make it easier to sort
     weight_mapping_helper = {}
@@ -196,12 +199,21 @@ def find_important_nodes(graph):
     return important_nodes
 
 
-def match_important_nodes(important_nodes, query_nh_index, target_nh_index):
+def match_important_nodes(important_nodes, query_nh_index, target_nh_index, prematched_nodes):
     # First we will find a 1-many mapping for each important node to a target node
     node_mapping = {}
     for n in important_nodes:
         node_mapping[n] = []
         matching_nodes = find_matching_nodes(query_nh_index, target_nh_index, n)
+
+        # any node that was already prematched should be removed
+        matching_nodes_clean = []
+        for (node, score) in matching_nodes:
+            if node not in [nid for (nid, s) in prematched_nodes.values()]:
+                matching_nodes_clean.append((node, score))
+
+        matching_nodes = matching_nodes_clean
+
         if(len(matching_nodes) == 0):
 	    # we failed to match this important node in the entire target graph
             continue
@@ -255,12 +267,12 @@ def match_and_score_nhi(query_nhi, target_nhi):
     if query_nhi['label'] != target_nhi['label']:
         return (False, 0)
 
-    if 'code' in query_nhi.keys() and 'code' in target_nhi.keys():
-        # If highly similar code, short circuit other checks
-        if SequenceMatcher(None, query_nhi['code'], target_nhi['code']).ratio() > 0.5:
-            return (True, 2)
-        else:
-            return (False, 0)
+    #if 'code' in query_nhi.keys() and 'code' in target_nhi.keys():
+    #     #If highly similar code, short circuit other checks
+    #     if SequenceMatcher(None, query_nhi['code'], target_nhi['code']).ratio() > 0.5:
+    #         return (True, 2)
+    #    else:
+    #        return (False, 0)
 
 
     num_allowed_misses = int(rho * query_nhi['degree'])
