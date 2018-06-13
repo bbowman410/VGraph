@@ -51,8 +51,6 @@ for commit_file in `ls commits`; do
                 if [ "$curr_file" != "" ] && [ "$curr_funcs" != "" ]; then
                     # signals the end of previous file
                     # we need to write results
-                    echo "$cve"
-                    echo "$codebase"
                     echo "Writing results for $curr_file"
                     echo "Writing results for $curr_funcs"
                     echo "Writing vuln id: $curr_vuln_id"
@@ -68,18 +66,22 @@ for commit_file in `ls commits`; do
                 curr_funcs=""
                 curr_vuln_id=""
                 curr_patch_id=""
+                if [ "$curr_file" != "" ]; then
+                    echo "Started processing file: $curr_file"
+                fi
             elif [ "$curr_file" != "" ] && [ "`echo $line | grep -o "^index [a-z0-9]*\.\.[a-z0-9]*"`" != "" ]; then
                 echo "Found index line: $line"
                 curr_vuln_id=`echo $line | grep -o "^index [a-z0-9]*\.\.[a-z0-9]*" | awk '{print $2}' | tr '..' ' ' | awk '{print $1}'`
                 curr_patch_id=`echo $line | grep -o "^index [a-z0-9]*\.\.[a-z0-9]*" | awk '{print $2}' | tr '..' ' ' | awk '{print $2}'`
-                echo $curr_vuln_id
-                echo $curr_patch_id
-            elif [ "$curr_file" != "" ] && [ "`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | uniq`" != "" ]; then
-                func_name="`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | uniq`"
-                curr_funcs="${curr_funcs}${func_name} "
+            elif [ "$curr_file" != "" ] && [ "$curr_vuln_id" != "" ] && [ "$curr_patch_id" != "" ] && [ "`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | uniq`" != "" ]; then
+                # At this point we have everything we need to write results...so lets do that
+                func_name="`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | tail -1`" # only get the last occurence in case there are some weird return types
+                curr_funcs="${curr_funcs}${func_name} " # keep track of all
                 echo "Found function names: $func_name"
+                echo "Writing results"
+
             else
-                #echo "Skipping line: $line"
+                # echo "Skipping line: $line"
                 continue
             fi
         done < <(cat ../../scratchwork)

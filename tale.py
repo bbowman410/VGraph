@@ -40,13 +40,17 @@ def match(query_graph, target_graph, query_nh_index, target_nh_index, important_
     # Each match can have a weight (aka score) of at most 2
     total_possible_score = 2 * len(query_graph.nodes)
     achieved_score = 0
-    for k,v in res.iteritems():
-        achieved_score = achieved_score + v[1]
+    important_node_score= 0
+    for n in res:
+        achieved_score += res[n][1]
+        if n in important_nodes:
+            important_node_score += res[n][1]
 
     real_score = (achieved_score * 100) / total_possible_score
+    real_important_score = (important_node_score * 100) / (2*len(important_nodes))
 
 
-    return (real_score, res)
+    return (real_score, res, real_important_score)
 
 
 

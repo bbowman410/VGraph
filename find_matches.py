@@ -7,19 +7,42 @@ import os
 import pickle as pkl
 
 
-NUM_PROCS=10
+NUM_PROCS=3
 
 """ Multi process worker daemon"""
 def worker(work_q, done_q):
     while True:
         job = work_q.get() # blocks until there is work
         job_num = job[0]
-        query_graph = job[1]
-        target_graph = job[2]
-	query_nhi = job[3]
-	target_nhi = job[4]
-	important_nodes = job[5]
-	done_q.put((job_num, tale.match(query_graph, target_graph, query_nhi, target_nhi, important_nodes)))
+        cvg = job[1]
+        target = job[2]
+
+        query_graph = cvg['pCVG']
+        target_graph = target[0]
+	query_nhi = cvg['pCVG_nhi']
+	target_nhi = target[1]
+	important_nodes = cvg['pCVG_important_nodes']
+        context_mapping = cvg['context_mapping']
+        # perform pCVG matching
+
+        pos_score, pos_mapping, imp_node_score = tale.match(query_graph, target_graph, query_nhi, target_nhi, important_nodes, {})
+
+        # Prematched node determination
+        context_nodes = set(pos_mapping.keys()).intersection(set(context_mapping.keys()))
+        # now we essentially want to pre-match those nodes in the nCVG
+        prematched_nodes = {}
+        for n in context_nodes:
+            # 2 things we need to do here - convert our pCVG node to a nCVG node with the
+            # context mapping, and set the match in the target graph to the same as
+            # what was in the pos_node_mapping (if it was mapped)
+            if n in pos_mapping and context_mapping[n][0] in cvg['nCVG']:
+                prematched_nodes[context_mapping[n][0]] = pos_mapping[n]
+
+        # Evaluating nCVG
+        neg_score, neg_mapping, neg_imp_node_score = tale.match(cvg['nCVG'], target_graph, cvg['nCVG_nhi'], target_nhi, cvg['nCVG_important_nodes'], prematched_nodes)
+        # perform nCVG matching
+
+	done_q.put((job_num, (pos_score, imp_node_score, neg_score, neg_imp_node_score)))
 
 
 """ Build list of target files from provided db location """
@@ -69,6 +92,7 @@ def load_query_graphs(query_files_list):
             pCVG_important_nodes = pkl.load(open(t[1] + "_pfg.important_nodes", 'rb'))
             nCVG_important_nodes = pkl.load(open(t[1] + "_nfg.important_nodes", 'rb'))
             pCVG_size = pkl.load(open(t[1] + "_size", 'rb'))
+            context_mapping = pkl.load(open(t[1] + ".context_mapping", 'rb'))
 
             query_graphs[cve].append({
                 "func_name":t[0],
@@ -77,7 +101,8 @@ def load_query_graphs(query_files_list):
 		"pCVG_size":pCVG_size,
 		"pCVG_nhi":pCVG_nhi,
                 "nCVG":nCVG,
-                "nCVG_important_nodes":nCVG_important_nodes})
+                "nCVG_important_nodes":nCVG_important_nodes,
+                "context_mapping": context_mapping})
     return query_graphs
 
 """ For each target file in target files list, load the CPG """
@@ -144,27 +169,27 @@ def main(args):
 	    idx_to_file.clear()
             # build work q
             for target_file, target_graph in target_graphs.iteritems(): # this should be only 10 for testing...
-		if abs(cvg['pCVG_size'] - len(target_graph[0].nodes)) > 3 * cvg['pCVG_size']:
-                    print "pCVG\t%s\t%s\t%s\t%d" % (cve, cvg['func_name'], target_file, 0)
-		    idx_to_file[i] = target_file
-		    i=i+1
-		else:
-                    work_q.put((i,cvg['pCVG'],target_graph[0], cvg['pCVG_nhi'], target_graph[1], cvg['pCVG_important_nodes']))
-    	            idx_to_file[i] = target_file
-                    i = i + 1
+		#if abs(cvg['pCVG_size'] - len(target_graph[0].nodes)) > 3 * cvg['pCVG_size']:
+                #    print "pCVG\t%s\t%s\t%s\t%d" % (cve, cvg['func_name'], target_file, 0)
+		#    idx_to_file[i] = target_file
+		#    i=i+1
+		#else:
+                work_q.put((i,cvg,target_graph))
+    	        idx_to_file[i] = target_file
+                i = i + 1
 
 	    # wait for work_q to drain
 	    while work_q.qsize() > 0:
 	        # our little worker bees are working.  flush the done_q while we wait so it doesn't get backed up...
 	        if not done_q.empty():
 	            res = done_q.get()
-            	    print "pCVG\t%s\t%s\t%s\t%d" % (cve, cvg['func_name'], idx_to_file[res[0]], res[1][0])
+            	    print "%s\t%s\t%s\tU\t%d\t%d\t%d\t%d" % (cve, cvg['func_name'], idx_to_file[res[0]], res[1][0], res[1][1], res[1][2], res[1][3])
 
 	    # at this point, work_q is drained
             # still might be some stuff in done q
             while not done_q.empty():
                 res = done_q.get()
-                print "pCVG\t%s\t%s\t%s\t%d" % (cve, cvg['func_name'], idx_to_file[res[0]], res[1][0])
+            	print "%s\t%s\t%s\tU\t%d\t%d\t%d\t%d" % (cve, cvg['func_name'], idx_to_file[res[0]], res[1][0], res[1][1], res[1][2], res[1][3])
         # At this point we move onto next CVG
         curr_cve = curr_cve + 1
 
