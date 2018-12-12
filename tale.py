@@ -16,10 +16,14 @@ def node_nh_idx(g, n):
     d['degree'] = g.degree(n)
     d['nbConnection'] = 0
     d['nbArray'] = []
+    d['edgeArray'] = []
     for nb in g.neighbors(n):
         # Building list of labels
         if g.node[nb]['type'] not in d['nbArray']:
             d['nbArray'].append(g.node[nb]['type'])
+
+        if g[n][nb]['type'] not in d['edgeArray']:
+            d['edgeArray'].append(g[n][nb]['type'])
 
         # Keeping track of neighbor connectedness
         d['nbConnection'] = d['nbConnection'] + len(set(g.neighbors(nb)).intersection(set(g.neighbors(n))))
@@ -32,6 +36,7 @@ def node_nh_idx(g, n):
 def match(query_graph, target_graph, query_nh_index, target_nh_index, important_nodes, prematched_nodes = {}):
     # there should never be a important node that is prematched... so don't need to do
     # anything about that here.
+    important_nodes = find_important_nodes(query_graph)
     weight_mappings = match_important_nodes(important_nodes, query_nh_index, target_nh_index, prematched_nodes)
 
     res = grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mappings, prematched_nodes)
@@ -253,6 +258,10 @@ def match_important_nodes(important_nodes, query_nh_index, target_nh_index, prem
 
     # now we will just use max weight matching provided by NetworkX
     max_weight_matching = nx.max_weight_matching(G)
+    max_weight_matching_dict = {}
+    for (k,v) in max_weight_matching:
+	max_weight_matching_dict[k] = v
+    max_weight_matching = max_weight_matching_dict
     node_mapping_max_weight = {}
 
     for i, query_node in enumerate(query_node_converter):
@@ -287,6 +296,9 @@ def match_and_score_nhi(query_nhi, target_nhi):
 
     # IV.3 test
     nb_miss = abs(len(query_nhi['nbArray']) - len(set(query_nhi['nbArray']).intersection(set(target_nhi['nbArray']))))
+    # new test on edge types
+    nb_miss += abs(len(query_nhi['edgeArray']) - len(set(query_nhi['edgeArray']).intersection(set(target_nhi['edgeArray']))))
+
     if nb_miss > num_allowed_misses:
         return (False, 0)
 
@@ -329,10 +341,15 @@ if __name__ == "__main__":
     G.node[2]['type'] = 'two'
     G.node[3]['type'] = 'three'
     G.add_edge(0,1)
+    G[0][1]['type'] = 'edge_1'
     G.add_edge(0,2)
+    G[0][2]['type'] = 'edge_2'
     G.add_edge(0,3)
+    G[0][3]['type'] = 'edge_3'
     G.add_edge(1,2)
+    G[1][2]['type'] = 'edge_4'
     G.add_edge(2,3)
+    G[2][3]['type'] = 'edge_5'
 
     H = nx.Graph()
     H.add_node(4)
@@ -344,10 +361,15 @@ if __name__ == "__main__":
     H.node[6]['type'] = 'two'
     H.node[7]['type'] = 'three'
     H.add_edge(4,5)
+    H[4][5]['type'] = 'edge_1'
     H.add_edge(4,6)
+    H[4][6]['type'] = 'edge_2'
     H.add_edge(4,7)
+    H[4][7]['type'] = 'edge_3'
     H.add_edge(5,6)
+    H[5][6]['type'] = 'edge_4'
     H.add_edge(6,7)
+    H[6][7]['type'] = 'edge_5'
 
     q_nh_index = generate_nh_index(G)
     t_nh_index = generate_nh_index(H)

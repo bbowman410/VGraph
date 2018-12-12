@@ -15,6 +15,8 @@
 # we know which functions are modified from vuln -> patch.  This helps with
 # processing later.
 
+SKIPPED=0
+PROCESSED=0
 mkdir -p src_files
 for commit_file in `ls commits`; do
     echo "Generating src files for commit file: $commit_file"
@@ -23,11 +25,13 @@ for commit_file in `ls commits`; do
     cd repos/$codebase/
     for c in $commits; do
         echo "Processing commit $c"
+        let PROCESSED=$PROCESSED+1
         git show $c > ../../scratchwork
         cve=`cat ../../scratchwork | grep -o "CVE-[0-9]*-[0-9]*" | head -1`
         num_files_covered=`grep "^diff --git" ../../scratchwork | wc -l`
         if [ $num_files_covered -gt 5 ] || [ $num_files_covered -eq 0 ]; then
             echo "This commit covers $num_files_covered files...skipping it."
+            let SKIPPED=$SKIPPED+1
             continue
         fi
 
@@ -103,3 +107,4 @@ for commit_file in `ls commits`; do
     cd ../../
 done
 rm -f scratchwork
+echo "PROCESSED: $PROCESSED SKIPPED: $SKIPPED"

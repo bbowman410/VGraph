@@ -39,18 +39,11 @@ if __name__ == "__main__":
             print "Size difference too big"
             print "%s %s %d %d %d" % (f, target_file, 0, 0, 0)
         else:
-            pos_match_score, pos_node_mapping = tale.match(cvgs[f]['pCVG'], target, cvgs[f]['pCVG_nhi'], target_nhi, cvgs[f]['pCVG_important_nodes'])
+            pos_match_score, pos_node_mapping, pos_imp_match_score = tale.match(cvgs[f]['pCVG'], target, cvgs[f]['pCVG_nhi'], target_nhi, cvgs[f]['pCVG_important_nodes'])
 
-            neg_match_score, neg_node_mapping = tale.match(cvgs[f]['nCVG'], target, cvgs[f]['nCVG_nhi'], target_nhi, cvgs[f]['nCVG_important_nodes'])
+            neg_match_score, neg_node_mapping, neg_imp_match_score = tale.match(cvgs[f]['nCVG'], target, cvgs[f]['nCVG_nhi'], target_nhi, cvgs[f]['nCVG_important_nodes'])
 
-            important_node_match = 0
-            for imp_node in cvgs[f]['pCVG_important_nodes']:
-                if imp_node in pos_node_mapping.keys():
-                    important_node_match = important_node_match + pos_node_mapping[imp_node][1]
-
-            important_node_match = (important_node_match * 100) / (2 * len(cvgs[f]['pCVG_important_nodes']))
-
-            print "%s %s %d %d %d" % (f, target_file, pos_match_score, neg_match_score, important_node_match)
+            print "%s %s %d (%d) %d (%d)" % (f, target_file, pos_match_score, pos_imp_match_score, neg_match_score, neg_imp_match_score)
 
 
 

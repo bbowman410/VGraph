@@ -7,7 +7,32 @@ import os
 import pickle as pkl
 
 
-NUM_PROCS=3
+NUM_PROCS=30
+
+def check_index(ind1, ind2, thresh):
+    overlap = ind1.intersection(ind2)
+    match_percent = len(overlap)*100/len(ind1)
+    if match_percent >= thresh:
+        return True
+    else:
+        return False
+
+def generate_edge_indexing(g):
+    # we will look at all edge node-relationship-node in g
+    index = set([])
+    for (a,b) in g.edges():
+        index.add((g.node[a]['type'], g[a][b]['type'], g.node[b]['type']))
+        index.add((g.node[b]['type'], g[b][a]['type'], g.node[a]['type']))
+
+    return index
+
+
+def simple_worker(work_q, done_q):
+    while True:
+       job = work_q.get()
+       job_num = job[0]
+       print "Processing job: %d" % job_num
+       done_q.put((job_num, (0,0,0,0)))
 
 """ Multi process worker daemon"""
 def worker(work_q, done_q):
@@ -39,7 +64,8 @@ def worker(work_q, done_q):
                 prematched_nodes[context_mapping[n][0]] = pos_mapping[n]
 
         # Evaluating nCVG
-        neg_score, neg_mapping, neg_imp_node_score = tale.match(cvg['nCVG'], target_graph, cvg['nCVG_nhi'], target_nhi, cvg['nCVG_important_nodes'], prematched_nodes)
+        #neg_score, neg_mapping, neg_imp_node_score = tale.match(cvg['nCVG'], target_graph, cvg['nCVG_nhi'], target_nhi, cvg['nCVG_important_nodes'], prematched_nodes)
+        neg_score, neg_mapping, neg_imp_node_score = tale.match(cvg['nCVG'], target_graph, cvg['nCVG_nhi'], target_nhi, cvg['nCVG_important_nodes'], {})# Screw prematched nodes...
         # perform nCVG matching
 
 	done_q.put((job_num, (pos_score, imp_node_score, neg_score, neg_imp_node_score)))
@@ -88,7 +114,9 @@ def load_query_graphs(query_files_list):
         for t in query_tuples:
             pCVG = nx.read_gpickle(t[1] + "_pfg.gpickle")
             nCVG = nx.read_gpickle(t[1] + "_nfg.gpickle")
+            pCVG_index = generate_edge_indexing(pCVG)
 	    pCVG_nhi = tale.generate_nh_index(pCVG)
+	    nCVG_nhi = tale.generate_nh_index(nCVG)
             pCVG_important_nodes = pkl.load(open(t[1] + "_pfg.important_nodes", 'rb'))
             nCVG_important_nodes = pkl.load(open(t[1] + "_nfg.important_nodes", 'rb'))
             pCVG_size = pkl.load(open(t[1] + "_size", 'rb'))
@@ -96,10 +124,13 @@ def load_query_graphs(query_files_list):
 
             query_graphs[cve].append({
                 "func_name":t[0],
+                "func_loc":t[1],
                 "pCVG":pCVG,
+                "pCVG_index":pCVG_index,
                 "pCVG_important_nodes":pCVG_important_nodes,
 		"pCVG_size":pCVG_size,
 		"pCVG_nhi":pCVG_nhi,
+		"nCVG_nhi":nCVG_nhi,
                 "nCVG":nCVG,
                 "nCVG_important_nodes":nCVG_important_nodes,
                 "context_mapping": context_mapping})
@@ -115,7 +146,8 @@ def load_target_graphs(target_files_list):
 	    continue
         else:
 	    tg_nhi = tale.generate_nh_index(tg)
-       	    target_graphs[f] = (tg, tg_nhi)
+            tg_index = generate_edge_indexing(tg)
+       	    target_graphs[f] = (tg, tg_nhi, tg_index)
     return target_graphs
 
 
@@ -124,6 +156,7 @@ def main(args):
         print "Usage: python find_matches.py <vuln_graph_db> <target_graph_db>"
         exit()
 
+    threshold = 90 # required edge_index matching
     # Setup our worker daemons prior to loading our data to prevent pollution in
     # worker process memory space
     work_q = multiprocessing.Queue()
@@ -159,40 +192,26 @@ def main(args):
     #       start the threads
     #       wait for threads to complete...write results...move onto next cvg/cve
 
-    num_cves = len(query_graphs)
     curr_cve = 0
     idx_to_file = {}
-    # Each CVE may have multiple CVGs.. although most should have one
+    i = 0
+    worker_info = {}
     for cve, array_of_cvgs in query_graphs.iteritems():
         for cvg in array_of_cvgs:
-            i = 0
-	    idx_to_file.clear()
-            # build work q
-            for target_file, target_graph in target_graphs.iteritems(): # this should be only 10 for testing...
-		#if abs(cvg['pCVG_size'] - len(target_graph[0].nodes)) > 3 * cvg['pCVG_size']:
-                #    print "pCVG\t%s\t%s\t%s\t%d" % (cve, cvg['func_name'], target_file, 0)
-		#    idx_to_file[i] = target_file
-		#    i=i+1
-		#else:
-                work_q.put((i,cvg,target_graph))
-    	        idx_to_file[i] = target_file
-                i = i + 1
-
-	    # wait for work_q to drain
-	    while work_q.qsize() > 0:
-	        # our little worker bees are working.  flush the done_q while we wait so it doesn't get backed up...
-	        if not done_q.empty():
-	            res = done_q.get()
-            	    print "%s\t%s\t%s\tU\t%d\t%d\t%d\t%d" % (cve, cvg['func_name'], idx_to_file[res[0]], res[1][0], res[1][1], res[1][2], res[1][3])
-
-	    # at this point, work_q is drained
-            # still might be some stuff in done q
-            while not done_q.empty():
-                res = done_q.get()
-            	print "%s\t%s\t%s\tU\t%d\t%d\t%d\t%d" % (cve, cvg['func_name'], idx_to_file[res[0]], res[1][0], res[1][1], res[1][2], res[1][3])
-        # At this point we move onto next CVG
-        curr_cve = curr_cve + 1
-
+            for target_file, target_graph in target_graphs.iteritems():
+                if check_index(cvg['pCVG_index'],target_graph[2], threshold): 
+                    work_q.put((i, cvg, target_graph))
+   		    worker_info[i] = (cve, cvg, target_file)
+                    i += 1
+    
+    # work q populated...
+    # now we wait
+    num_completed_jobs = 0
+    while num_completed_jobs < i:
+        res = done_q.get()
+        num_completed_jobs += 1
+        print "%s\t%s\t%s\tU\t%d\t%d\t%d\t%d" % (worker_info[res[0]][0], worker_info[res[0]][1]['func_loc'], worker_info[res[0]][2], res[1][0], res[1][1], res[1][2], res[1][3])
+  
 
 if __name__ == "__main__":
     main(sys.argv)
