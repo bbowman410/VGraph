@@ -258,10 +258,11 @@ def match_important_nodes(important_nodes, query_nh_index, target_nh_index, prem
 
     # now we will just use max weight matching provided by NetworkX
     max_weight_matching = nx.max_weight_matching(G)
-    max_weight_matching_dict = {}
-    for (k,v) in max_weight_matching:
-	max_weight_matching_dict[k] = v
-    max_weight_matching = max_weight_matching_dict
+    #print type(max_weight_matching)
+    #max_weight_matching_dict = {}
+    #for (k,v) in max_weight_matching:
+    #	max_weight_matching_dict[k] = v
+    #max_weight_matching = max_weight_matching_dict
     node_mapping_max_weight = {}
 
     for i, query_node in enumerate(query_node_converter):

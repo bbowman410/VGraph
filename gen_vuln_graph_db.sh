@@ -1,3 +1,9 @@
+# DEPRECATED
+
+# No longer using Neo4J
+
+# TOOO SLOOOWWW 
+
 # This script will look through all functions in neo4j and generate the CPG for vuln and patch
 MAX_NUM_PROCS=10
 
