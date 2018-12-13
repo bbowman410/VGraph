@@ -1,4 +1,4 @@
-# vGraph
+# vGraph Database Generation
 
 ## Vulnerability Source Code Database Generation
 
@@ -53,40 +53,47 @@ vuln_patch_graph_db/<repository>/<CVE>/<vuln|patch>/<src_file_name>/<code|graph>
 
 The next step is to actually build the vGraphs from the CPGs of the vulnerable and patched functions.
 
-TODO
-
-### Generate pCVG and nCVG for each vuln/patch pair in our database
-
-Next we will be generating our positive Core Vulnerability Graph (pCVG), and our negative Core Vulnerability Graph (nCVG).  a simple script takes care of this.
-
 ```
 ./gen_core_vuln_graphs.sh
 ```
+This script will build the `vgraph_db` directory with the directory structure as follows:
+```
+vgraph_db/<repo>/<cve>/<file_name>/<function_name><extension>
+```
+The <extension> can be on of: `_nvg.gpickle` for negative vGraph, `_pvg.gpickle` for positive vGraph, or `.context_mapping` which maps the context nodes shared across both the negative vGraph and positive vGraph.  These three files combined  represent the vGraph structure.
 
-## Vulnerability Extrapolation
+# Using vGraphs to find new vulnerabilities
 
-### Joern Database Setup
+Now we want to use our vGraph database to hunt new vulnerabilities.  Given a source code repository `<target_src_repo>`, we must perform the following steps:
+ - Use `joern-parse` utility to parse the source code and generate CPGs for all functions.
+ - Convert CPGs to NetworkX format
+ - perform vGraph analysis on target CPGs
+ 
+## Parsing target code
 
-We utilize Joern to generate the Code Property Graph (CPG) of all functions in our target source code.
+Parsing the target source code is the same as when we parased our vulnerable source code.  You must have joern installed and built in order to do this.
 
 ```
-joern <source_code_directory>
+$ /path/to/joern/joern-parse /path/to/target_src
 ```
 
-The result of this command will be a hidden file ```.joernIndex``` which will be used with Neo4j.  Point neo4j server to this file and start it with ```neo4j console```.
+This again will create a directory called `parsed` in your current working directory.
 
-### Generate Target Graph Database
+## Converting target
 
-Now we will utilize Joern and Neo4j to export the CPG of each function into NetworkX format for processing
+Now we want to convert the `.csv` files into NetworkX graph format for analysis with out algorithms.
 
 ```
 ./gen_target_graph_db.sh
 ```
+make sure you are in same working directory as the `parsed` file created previously
 
-### Vulnerability Extrapolation
+The result will be a directory `target_graph_db`.  This contains the NetworkX CPGs for every function in the target codebase.
 
-Now, using the TALE approximate graph matching algorithm, we will compare target functions against the pCVG and nCVG in order to identify possible vulnerabilities.
+# Hunting Vulnerabilities
+
+Now its time to hunt for vulnerabilities.  
 
 ```
-./find_matches.py
+python find_matches.py <vuln_graph_db> <target_graph_db>
 ```
