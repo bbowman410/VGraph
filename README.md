@@ -95,5 +95,26 @@ The result will be a directory `target_graph_db`.  This contains the NetworkX CP
 Now its time to hunt for vulnerabilities.  
 
 ```
-python find_matches.py <vuln_graph_db> <target_graph_db>
+python find_matches.py <vuln_graph_db> <target_graph_db> <result_file>
 ```
+
+After completion, <result_file> will be populated with lines containing: <vgraph_id> <target_graph_id> <positive vGraph score> <negative vGraph score>.
+ 
+These results can then be analyzed to find functions most likely to be vulnerable.  
+
+# Evaluating Database
+
+You may want to evaluate how well your vGraphs are performing.  What I mean by this, is you may want to make sure your vGraph and your matching algorithm are sufficiently expressive to identify new vulnerabilities without overwelmingly high false positives.  
+
+This is simple to do.  We can simply treat the vuln_patch_graph db generated previously as our target database, and perform matching against that.  We can then evaluate the output and verify that vGraphs matched higher with vulnerable graph than patch graph, and we can also see how vGraphs compare with eachother.
+
+```
+python find_matches.py <vuln_graph_db> vuln_src_db/vuln_patch_graph_db <result_file>
+```
+
+Since we know which functions are vulnerable and which are patched, we can easily generate some statistics with the included script:
+
+```
+python vgraph_stats.py <result_file>
+```
+
