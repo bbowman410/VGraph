@@ -81,14 +81,12 @@ This again will create a directory called `parsed` in your current working direc
 
 ## Converting target
 
-Now we want to convert the `.csv` files into NetworkX graph format for analysis with out algorithms.
+Now we want to convert the `.csv` files into NetworkX graph format for analysis with out algorithms.  run the `gen_target_graph_db` script and provide it the location of the `parsed` directory which was output from the previous step, as well as the output directory.
 
 ```
-./gen_target_graph_db.sh
+./gen_target_graph_db.sh <parsed_directory> <output_directory>
 ```
-make sure you are in same working directory as the `parsed` file created previously
-
-The result will be a directory `target_graph_db`.  This contains the NetworkX CPGs for every function in the target codebase.
+After completion, the `output_directory` will contain the NetworkX CPGs for every function in the target codebase that was successfully parsed by Joern.
 
 # Hunting Vulnerabilities
 
