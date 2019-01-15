@@ -1,13 +1,14 @@
 import networkx as nx
 from difflib import SequenceMatcher
 
-
+# Generate neighborhood index for all nodes in graph g
 def generate_nh_index(g):
     nh_idx = {}
     for n in g.nodes:
         nh_idx[n] = node_nh_idx(g,n)
     return nh_idx
 
+# Generate neighhood index for an individual node
 def node_nh_idx(g, n):
     d = {}
     d['label'] = g.node[n]['type']
@@ -28,40 +29,48 @@ def node_nh_idx(g, n):
         # Keeping track of neighbor connectedness
         d['nbConnection'] = d['nbConnection'] + len(set(g.neighbors(nb)).intersection(set(g.neighbors(n))))
 
-    # Double counted...so divide by two..lol
+    # Double counted...so divide by two
     d['nbConnection'] = d['nbConnection'] / 2
     return d
 
+# Entry function for matching two graphs
+def match(query_graph, target_graph, query_nh_index, target_nh_index, r = 0.1, p = 0.5, prematched_nodes = None):
+  
+    # Determine the important nodes in our query graph
+    important_nodes = find_important_nodes(query_graph, p)
 
-def match(query_graph, target_graph, query_nh_index, target_nh_index, important_nodes, prematched_nodes = {}):
-    # there should never be a important node that is prematched... so don't need to do
-    # anything about that here.
-    important_nodes = find_important_nodes(query_graph)
-    weight_mappings = match_important_nodes(important_nodes, query_nh_index, target_nh_index, prematched_nodes)
+    # Match the important nodes to our target graph
+    weight_mappings = match_important_nodes(important_nodes, query_nh_index, target_nh_index, prematched_nodes, r)
+   
+    # Grow the match
+    res = grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mappings, prematched_nodes, r)
 
-    res = grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mappings, prematched_nodes)
-
-
+    # Calculate overall match score
     # Each match can have a weight (aka score) of at most 2
     total_possible_score = 2 * len(query_graph.nodes)
     achieved_score = 0
-    important_node_score= 0
     for n in res:
         achieved_score += res[n][1]
-        if n in important_nodes:
-            important_node_score += res[n][1]
 
-    real_score = (achieved_score * 100) / total_possible_score
-    real_important_score = (important_node_score * 100) / (2*len(important_nodes))
+    overall_score = int((achieved_score * 100) / total_possible_score)
+    
+    if overall_score > 100:
+        print "Well this is not right.."
+        print "Length of query graph: %d" % len(query_graph.nodes)
+        print "Length of target graph: %d" % len(target_graph.nodes)
+        print "Length of mapping: %d" % len(res)
+     
+
+    return (overall_score, res)
 
 
-    return (real_score, res, real_important_score)
 
-
-
-def grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mapping, prematched_nodes):
+def grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weight_mapping, prematched_nodes, r):
     processing_queue = []
-    final_results = prematched_nodes # this will be an empty dict if no premateched nodes
+    if prematched_nodes is not None:
+        final_results = prematched_nodes
+    else:
+        final_results = {}
     # Add our important nodes to the processing queue
     # we build weight_mapping_helper which will make it easier to sort
     weight_mapping_helper = {}
@@ -141,17 +150,17 @@ def grow_match(query_graph, target_graph, query_nh_index, target_nh_index, weigh
                 test[v] = k
 
 
-        match_nodes(query_nh_index, target_nh_index, nb_query, nb_target, processing_queue, weight_mapping)
-        match_nodes(query_nh_index, target_nh_index, nb_query, nb_target_2_hops, processing_queue, weight_mapping)
-        match_nodes(query_nh_index, target_nh_index, nb_query_2_hops, nb_target, processing_queue, weight_mapping)
+        match_nodes(query_nh_index, target_nh_index, nb_query, nb_target, processing_queue, weight_mapping, r)
+        match_nodes(query_nh_index, target_nh_index, nb_query, nb_target_2_hops, processing_queue, weight_mapping, r)
+        match_nodes(query_nh_index, target_nh_index, nb_query_2_hops, nb_target, processing_queue, weight_mapping, r)
 
     return final_results
 
-def match_nodes(query_nh_index, target_nh_index, query_nodes, target_nodes, processing_queue, weight_mapping):
+def match_nodes(query_nh_index, target_nh_index, query_nodes, target_nodes, processing_queue, weight_mapping, r):
     for q in query_nodes:
         best_match = None
         for target in target_nodes:
-            (is_match, score) = match_and_score_nhi(query_nh_index[q], target_nh_index[target])
+            (is_match, score) = match_and_score_nhi(query_nh_index[q], target_nh_index[target], r)
             if is_match:
                 if best_match is None:
                     best_match = (target, score)
@@ -179,23 +188,23 @@ def match_nodes(query_nh_index, target_nh_index, query_nodes, target_nodes, proc
 
 
 
-def find_matching_nodes(query_nh_index, target_nh_index, query_node):
+def find_matching_nodes(query_nh_index, target_nh_index, query_node, r):
     # we want to return all nodes in target graph that match our query node
     query_nhi = query_nh_index[query_node]
     matching_target_nodes = []
     for node, nh_idx in target_nh_index.iteritems():
-	is_match, score = match_and_score_nhi(query_nhi, nh_idx)
+	is_match, score = match_and_score_nhi(query_nhi, nh_idx, r)
 	if is_match:
 	    matching_target_nodes.append((node, score))
     return matching_target_nodes
 
-def find_important_nodes(graph):
+def find_important_nodes(graph, p):
     """ Returns a list of important nodes (based on degree, top P_imp percent) """
-    P_imp = 0.1
+    #P_imp = 0.2
 
     # import based on degree centrality
     node_degree_dict = {}
-    nodes_to_return = int(len(graph.nodes) * P_imp)
+    nodes_to_return = int(len(graph.nodes) * p)
     for n in graph.nodes:
         node_degree_dict[n] = graph.degree(n)
 
@@ -208,24 +217,27 @@ def find_important_nodes(graph):
     return important_nodes
 
 
-def match_important_nodes(important_nodes, query_nh_index, target_nh_index, prematched_nodes):
+def match_important_nodes(important_nodes, query_nh_index, target_nh_index, prematched_nodes, r):
     # First we will find a 1-many mapping for each important node to a target node
     node_mapping = {}
     for n in important_nodes:
         node_mapping[n] = []
-        matching_nodes = find_matching_nodes(query_nh_index, target_nh_index, n)
+        matching_nodes = find_matching_nodes(query_nh_index, target_nh_index, n, r)
 
         # any node that was already prematched should be removed
-        matching_nodes_clean = []
-        for (node, score) in matching_nodes:
-            if node not in [nid for (nid, s) in prematched_nodes.values()]:
-                matching_nodes_clean.append((node, score))
+        if prematched_nodes is not None:
+            matching_nodes_clean = []
+            for (node, score) in matching_nodes:
+                if node not in [nid for (nid, s) in prematched_nodes.values()]:
+                    matching_nodes_clean.append((node, score))
 
-        matching_nodes = matching_nodes_clean
+            matching_nodes = matching_nodes_clean
 
         if(len(matching_nodes) == 0):
 	    # we failed to match this important node in the entire target graph
             continue
+
+        
         for (node, score) in matching_nodes:
 	    node_mapping[n].append((node, score))
 
@@ -274,12 +286,12 @@ def match_important_nodes(important_nodes, query_nh_index, target_nh_index, prem
     return node_mapping_max_weight
 
 
-def match_and_score_nhi(query_nhi, target_nhi):
-    rho = 0
+def match_and_score_nhi(query_nhi, target_nhi, r):
+    #rho = 0
     #rho = 0.1
     # This function will simultaneously match and score two neighborhood indices
     if query_nhi['label'] != target_nhi['label']:
-        return (False, 0)
+        return (False, 0.)
 
     #if 'code' in query_nhi.keys() and 'code' in target_nhi.keys():
     #     #If highly similar code, short circuit other checks
@@ -289,45 +301,46 @@ def match_and_score_nhi(query_nhi, target_nhi):
     #        return (False, 0)
 
 
-    num_allowed_misses = int(rho * query_nhi['degree'])
+    num_allowed_misses = int(r * query_nhi['degree'])
 
     # IV.2 test
     if target_nhi['degree'] < query_nhi['degree'] - num_allowed_misses:
-        return (False, 0)
+        return (False, 0.)
 
     # IV.3 test
     nb_miss = abs(len(query_nhi['nbArray']) - len(set(query_nhi['nbArray']).intersection(set(target_nhi['nbArray']))))
+
     # new test on edge types
     nb_miss += abs(len(query_nhi['edgeArray']) - len(set(query_nhi['edgeArray']).intersection(set(target_nhi['edgeArray']))))
 
     if nb_miss > num_allowed_misses:
-        return (False, 0)
+        return (False, 0.)
 
     # IV.4 test
     if target_nhi['nbConnection'] >= query_nhi['nbConnection']:
-        nbc_miss = 0
+        nbc_miss = 0.
     else:
-        nbc_miss = query_nhi['nbConnection'] - target_nhi['nbConnection']
+        nbc_miss = float(query_nhi['nbConnection'] - target_nhi['nbConnection'])
 
     if nbc_miss > num_allowed_misses:
-        return (False, 0)
+        return (False, 0.)
 
     # Now we score the match
     if query_nhi['degree'] == 0:
-        f_nb = 0
+        f_nb = 0.
     else:
-        f_nb = nb_miss / query_nhi['degree']
+        f_nb = float(nb_miss) / float(query_nhi['degree'])
 
     if query_nhi['nbConnection'] == 0:
-        f_nbc = 0
+        f_nbc = 0.
     else:
-        f_nbc = nbc_miss / query_nhi['nbConnection']
+        f_nbc = float(nbc_miss) / float(query_nhi['nbConnection'])
 
 
     if nb_miss == 0:
-        w = 2 - f_nbc
+        w = 2. - f_nbc
     else:
-        w = 2 - (f_nb + (f_nbc / nb_miss))
+        w = 2. - (f_nb + (f_nbc / nb_miss))
 
     return (True, w)
 

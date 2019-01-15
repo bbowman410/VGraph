@@ -8,7 +8,7 @@ import os
 import pickle as pkl
 
 
-NUM_PROCS=10
+NUM_PROCS=40
 
 def check_index(ind1, ind2, thresh):
     overlap = ind1.intersection(ind2)
@@ -34,9 +34,10 @@ def output_writer(done_q, ofp):
         res = done_q.get()
         vg_id = res[0]
         target_id = res[1]
-        pos_score = res[2]
-        neg_score = res[3]
-        ofp.write("%s\t%s\t%d\t%d\n" % (vg_id, target_id, pos_score, neg_score))
+        context_score = res[2]
+        pos_score = res[3]
+        neg_score = res[4]
+        ofp.write("%s\t%s\t%d\t%d\t%d\n" % (vg_id, target_id, context_score, pos_score, neg_score))
         ofp.flush()
 
 
@@ -48,32 +49,32 @@ def worker(work_q, done_q):
         target_id = job[1]
         vg = job[2]
         target = job[3]
-
+        
+        context_score = 0
+        pos_score = 0
+        neg_score = 0
         target_graph = target['graph']
 	target_nhi = target['nhi']
 	#important_nodes = cvg['pCVG_important_nodes']
-        context_mapping = vg['context_mapping']
+        #context_mapping = vg['context_mapping']
+        num_query_nodes = len(vg['context'].nodes)
+        num_target_nodes = len(target_graph.nodes)
+        if abs(num_query_nodes - num_target_nodes) > (0.2 * num_query_nodes):
+            # number of nodes is too diferent.  This is an analogue for context behavior.  so we skip
+            done_q.put((vg_id, target_id, 0, 0, 0))
+            continue
+       
+        #match on context
+        context_score, context_mapping = tale.match(vg['context'], target_graph, vg['context_nhi'], target_nhi) 
 
         # perform positive vGraph matching
-        pos_score, pos_mapping, imp_node_score = tale.match(vg['pvg'], target_graph, vg['pvg_nhi'], target_nhi, None, {})
-
-        # Prematched node determination
-        #context_nodes = set(pos_mapping.keys()).intersection(set(context_mapping.keys()))
-        # now we essentially want to pre-match those nodes in the nCVG
-        #prematched_nodes = {}
-        #for n in context_nodes:
-            # 2 things we need to do here - convert our pCVG node to a nCVG node with the
-            # context mapping, and set the match in the target graph to the same as
-            # what was in the pos_node_mapping (if it was mapped)
-        #    if n in pos_mapping and context_mapping[n][0] in cvg['nCVG']:
-        #        prematched_nodes[context_mapping[n][0]] = pos_mapping[n]
+        pos_score, pos_mapping = tale.match(vg['pvg'], target_graph, vg['pvg_nhi'], target_nhi)
 
         # perform negative vGraph matching
-        #neg_score, neg_mapping, neg_imp_node_score = tale.match(cvg['nCVG'], target_graph, cvg['nCVG_nhi'], target_nhi, cvg['nCVG_important_nodes'], prematched_nodes)
-        neg_score, neg_mapping, neg_imp_node_score = tale.match(vg['nvg'], target_graph, vg['nvg_nhi'], target_nhi, None, {})# Screw prematched nodes...
+        neg_score, neg_mapping = tale.match(vg['nvg'], target_graph, vg['nvg_nhi'], target_nhi)
         
 
-	done_q.put((vg_id, target_id, pos_score, neg_score))
+	done_q.put((vg_id, target_id, context_score, pos_score, neg_score))
 
 
 """ Build list of target files from provided db location """
@@ -89,6 +90,7 @@ def get_target_files(target_db_location):
                 target_files.append("%s/%s" % (root, f))
 
     print "Found %d target files." % len(target_files)
+    #return target_files[:100] # 100 target files for testing...
     return target_files
 
 """ Build list of query files from provided db location """
@@ -118,9 +120,12 @@ def load_query_graphs(query_files_list):
     for vg in query_files_list:
         pvg = nx.read_gpickle(vg + "_pvg.gpickle")
         nvg = nx.read_gpickle(vg + "_nvg.gpickle")
+        context = nx.read_gpickle(vg + "_context.gpickle")
         pvg_index = generate_edge_indexing(pvg)
+        context_index = generate_edge_indexing(context)
 	pvg_nhi = tale.generate_nh_index(pvg)
 	nvg_nhi = tale.generate_nh_index(nvg)
+	context_nhi = tale.generate_nh_index(context)
         #pvg_important_nodes = pkl.load(open(t[1] + "_pvg.important_nodes", 'rb'))
         #nvg_important_nodes = pkl.load(open(t[1] + "_nfg.important_nodes", 'rb'))
         #pvg_size = pkl.load(open(t[1] + "_size", 'rb'))
@@ -134,6 +139,9 @@ def load_query_graphs(query_files_list):
             "pvg_nhi":pvg_nhi,
             "nvg_nhi":nvg_nhi,
             "nvg":nvg,
+            "context":context,
+            "context_nhi":context_nhi,
+            "context_index":context_index,
             #"nCVG_important_nodes":nCVG_important_nodes,
             "context_mapping": context_mapping}
     return query_graphs
@@ -206,11 +214,12 @@ def main(args):
     items_added = 0
     for vg in query_graphs:
         for target in target_graphs:
-            if check_index(query_graphs[vg]['pvg_index'],target_graphs[target]['index'], threshold): 
+            if check_index(query_graphs[vg]['context_index'],target_graphs[target]['index'], threshold): 
                 items_added += 1
                 work_q.put((vg, target, query_graphs[vg], target_graphs[target]))
             else:
                 failed_index_check += 1
+                done_q.put((vg, target, 0, 0, 0))
     print "Jobs added: %d" % items_added
     print "Jobs skipped: %d" % failed_index_check 
     print "Processing done queue..."

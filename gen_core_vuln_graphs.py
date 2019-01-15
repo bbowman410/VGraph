@@ -213,10 +213,10 @@ if vuln_pos_score < vuln_neg_score or patch_pos_score > patch_neg_score:
     print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(node_mapping), len(pvg.nodes),len(nvg.nodes) )
     exit()
 
-#if len(pvg.nodes) < 200:
-#    print "ERROR: pvg too small (%s)" % vuln_function
-#    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(node_mapping), len(pvg.nodes),len(nvg.nodes) )
-#    exit()
+if len(pvg.nodes) < 30 or len(nvg.nodes) < 30:
+    print "ERROR: vGraph too small (%s)" % vuln_function
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(node_mapping), len(pvg.nodes),len(nvg.nodes) )
+    exit()
 
 # If we get here, then were good!
 if not os.path.exists(output_path):
