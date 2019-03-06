@@ -65,7 +65,7 @@ def get_graphs(nodes_file, function_names):
                 if row[3] in function_names:
                     # This function is in our funcnames list.  So we want it!
                     curr_meta['location'] = row[4]
-                    curr_meta['graph'] = nx.Graph()
+                    curr_meta['graph'] = nx.DiGraph()
                     curr_meta['name'] = row[3]
                     processing_func = True
             else:
@@ -128,7 +128,6 @@ def extract_func(from_file, to_file, location):
         
 
 vuln_code_dir = 'src_files'
-parsed_dir = 'parsed'
 output_dir = 'vuln_patch_graph_db'
 parsed_base_dir = 'parsed'
 
@@ -148,49 +147,54 @@ for repo in os.listdir(vuln_code_dir):
 
     # For every CVE...
     for cve in os.listdir(vuln_code_dir + '/' + repo):
-        # Inside here we have funcname, vuln, patch
+        # Inside here we have funcname, vuln, patch, before, after
 
-        # Get names of vulnerable / patched functions
+        # Get names of functions of interest
         function_names = []
         for f_name in open(vuln_code_dir + '/' + repo + '/' + cve + '/funcnames').readlines():
             f_name = f_name.rstrip()
             if f_name:
                 function_names.append(f_name) 
 
+        # Get list of vuln files 
+        vuln_file_names = []
+        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/vuln/'): 
+            vuln_file_names.append(f)
+      
+        # Get list of patch files
+        patch_file_names = []
+        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/patch/'): 
+            patch_file_names.append(f)
+
+        # Get list of before patch files (also vuln)
+        before_file_names = []
+        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/before/'): 
+            before_file_names.append(f)
         
-        # Get the names of the source code files we will be processing
-        file_names = []
-        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/vuln/'): # there will be same files in both vuln and patch
-            file_names.append(f)
+        # Get list of after patch files (also patched)
+        after_file_names = []
+        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/after/'): 
+            after_file_names.append(f)
 
-        # OK. so we have the C files.  The functions in those C files that we care about
-        # Now need to find those functions in parsed directory, build Networkx graph, and extract source code from orig code
+        # Now need to:
+        #  1)  Find those functions in parsed directory
+        #  2)  Build Networkx graph from .csv files
+        #  3)  Extract source code of specific functions from orig source code
+   
+        for (f_names, d) in [(vuln_file_names, 'vuln'),
+                (patch_file_names, 'patch'),
+                (before_file_names, 'before'),
+                (after_file_names, 'after')]:
+            for f in f_names:
+                parsed_file_nodes = "%s/%s/%s/%s/%s/nodes.csv" % (parsed_base_dir,repo,cve,d,f)
+                parsed_file_edges = "%s/%s/%s/%s/%s/edges.csv" % (parsed_base_dir,repo,cve,d,f)
+                edge_list = get_edge_list(parsed_file_edges)
+                graphs = get_graphs(parsed_file_nodes, function_names)
+                # Now need to write out data
+                for g in graphs:
+                    write_graph(g['graph'], output_dir, repo, cve, d, f, g['name'])
+                    just_the_func = extract_func("%s/%s/%s/%s/%s" % (vuln_code_dir,repo,cve,d,f), 'to_file', g['location'])
+                    write_code(just_the_func, output_dir, repo, cve, d, f, g['name'])
 
-
-         
-        for f in file_names:
-            # Vuln file parsing:
-            parsed_file_nodes = parsed_base_dir + '/' + repo + '/' + cve + '/vuln/' + f + '/nodes.csv'
-            parsed_file_edges = parsed_base_dir + '/' + repo + '/' + cve + '/vuln/' + f + '/edges.csv'
-            edge_list = get_edge_list(parsed_file_edges)
-            graphs = get_graphs(parsed_file_nodes, function_names)
-
-            # Now we have a list of graphs, as well as their names and locations for this file_name
-            # We need to write out these graphs and,
-            # We need to extract the function from the original source code (oooo)
-
-            for g in graphs:
-                write_graph(g['graph'], output_dir, repo, cve, 'vuln', f, g['name'])
-                just_the_func = extract_func(vuln_code_dir + '/' + repo + '/' + cve + '/vuln/' + f, 'to_file', g['location'])
-                write_code(just_the_func, output_dir, repo, cve, 'vuln', f, g['name'])
-
-            # Patch file parsing
-            parsed_file_nodes = parsed_base_dir + '/' + repo + '/' + cve + '/patch/' + f + '/nodes.csv'
-            parsed_file_edges = parsed_base_dir + '/' + repo + '/' + cve + '/patch/' + f + '/edges.csv'
-            edge_list = get_edge_list(parsed_file_edges)
-            graphs = get_graphs(parsed_file_nodes, function_names)
-            for g in graphs:
-                write_graph(g['graph'], output_dir, repo, cve, 'patch', f, g['name'])
-                just_the_func = extract_func(vuln_code_dir + '/' + repo + '/' + cve + '/patch/' + f, 'to_file', g['location'])
-                write_code(just_the_func, output_dir, repo, cve, 'patch', f, g['name'])
+            
 
