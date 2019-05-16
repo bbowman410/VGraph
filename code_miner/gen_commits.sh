@@ -13,6 +13,6 @@ mkdir -p commits
 for d in `ls repos`; do
     echo "$d"
     cd ./repos/$d
-    git log --grep=$GREP_STRING | grep "^commit" | awk '{print $2}' > ../../commits/$d.commits
+    git log --no-merges --grep=$GREP_STRING | grep "^commit" | awk '{print $2}' > ../../commits/$d.commits
     cd ../../
 done
