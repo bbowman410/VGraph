@@ -158,23 +158,29 @@ for repo in os.listdir(vuln_code_dir):
 
         # Get list of vuln files 
         vuln_file_names = []
-        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/vuln/'): 
-            vuln_file_names.append(f)
+        for h in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/vuln/'):
+            for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/vuln/' + h): 
+                vuln_file_names.append('%s/%s' % (h,f))
       
         # Get list of patch files
         patch_file_names = []
-        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/patch/'): 
-            patch_file_names.append(f)
+        for h in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/patch/'): 
+            for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/patch/' + h): 
+                patch_file_names.append('%s/%s' % (h,f))
 
         # Get list of before patch files (also vuln)
         before_file_names = []
-        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/before/'): 
-            before_file_names.append(f)
+        for t in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/before/'):
+            for h in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/before/' + t): 
+                for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/before/'+t+'/'+ h): 
+                    before_file_names.append('%s/%s/%s' % (t,h,f))
         
         # Get list of after patch files (also patched)
         after_file_names = []
-        for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/after/'): 
-            after_file_names.append(f)
+        for t in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/after/'):
+            for h in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/after/' + t): 
+                for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/after/'+t+'/'+h): 
+                    after_file_names.append('%s/%s/%s' % (t,h,f))
 
         # Now need to:
         #  1)  Find those functions in parsed directory

@@ -31,39 +31,111 @@ function download_data {
   local vuln_hash=$6
   local patch_hash=$7
   
-  log "Downloading source code for: $cve $codebase $path $funcs $commit_hash"
+  log "Downloading source code: $cve $codebase $path $funcs $commit_hash"
 
   # Make any necessary directories
-  mkdir -p $SRC_CODE_DIR/$codebase/$cve/vuln
-  mkdir -p $SRC_CODE_DIR/$codebase/$cve/patch
+  mkdir -p $SRC_CODE_DIR/$codebase/$cve/vuln/$commit_hash
+  mkdir -p $SRC_CODE_DIR/$codebase/$cve/patch/$commit_hash
   mkdir -p $SRC_CODE_DIR/$codebase/$cve/before
   mkdir -p $SRC_CODE_DIR/$codebase/$cve/after
 
-  # Download data from github.  save function names
-  git show $curr_vuln_id > $SRC_CODE_DIR/$codebase/$cve/vuln/$curr_file
-  git show $curr_patch_id > $SRC_CODE_DIR/$codebase/$cve/patch/$curr_file
-  echo "$funcs" | tr ' ' '\n' | uniq > $SRC_CODE_DIR/$codebase/$cve/funcnames
-  
-  # Identify 2 commits before this one.  Write files.
-  before_commits=`git log $path | grep "^commit" | grep -B 2 $commit_hash | head -2`
-  if [ "$before_commits" != "" ]; then
-    for bc in $before_commits; do
-      if [ "$bc" != "commit" ]; then
-        log "Downloading (addtl before vuln) source code for: $cve $codebase $path $funcs $bc"
-        git show $bc:$path > $SRC_CODE_DIR/$codebase/$cve/before/${bc}_${curr_file}
-      fi
-    done
+  # Download vulnerable file and patched file.
+  git show $vuln_hash > $SRC_CODE_DIR/$codebase/$cve/vuln/$commit_hash/$curr_file
+  git show $patch_hash > $SRC_CODE_DIR/$codebase/$cve/patch/$commit_hash/$curr_file
+
+  # Save function names so we know which functions to parse out
+  echo "$funcs" | tr '|' '\n' | sed '/^$/d' | sort | uniq > $SRC_CODE_DIR/$codebase/$cve/funcnames
+
+  # Get linux epoch time of commit
+  timestamp=`git log -1 --pretty=format:"%ct" $commit_hash`
+  # Compute cutoff times
+  let timestamp_1mo_before=$timestamp-2592000
+  let timestamp_6mo_before=$timestamp-15552000
+  let timestamp_1mo_after=$timestamp+2592000
+  let timestamp_6mo_after=$timestamp+15552000
+
+  # Evaluation Dataset:
+  # commits BEFORE current commit will be labeled as VULNERABLE to this CVE
+  # commits AFTER current commit will be labeled as PATCHED to this CVE
+
+  # rev-list provides revision  history to a certain path
+
+  # Immediately before
+  before_commit=`git rev-list $commit_hash $path | head -2 | grep -v $commit_hash`
+  echo "before commit: $before_commit"
+  # 1 month before
+  before_commit_1mo=`git rev-list --min-age=$timestamp_1mo_before $commit_hash $path | head -1`
+  echo "before commit 1mo: $before_commit_1mo"
+  # 6 month before
+  before_commit_6mo=`git rev-list --min-age=$timestamp_6mo_before $commit_hash $path | head -1`
+  echo "before commit 6mo: $before_commit_6mo"
+
+  # Immediately after
+  after_commit=`git rev-list --ancestry-path ${commit_hash}..HEAD $path | tail -1`
+  echo "after commit: $after_commit"
+  # 1 month after.  This is sorta silly.  2 steps to get this...better than walking the
+  # whole tree i suppose
+  # this gets the NEWEST commit that is still OLDER than time cutoff.
+  echo "git rev-list --ancestry-path --before=$timestamp_1mo_after ${commit_hash}..HEAD $path | head -1"
+  tmp_hash=`git rev-list --ancestry-path --before=$timestamp_1mo_after ${commit_hash}..HEAD $path | head -1`
+  if [ "$tmp_hash" == "" ]; then
+    # if tmp_hash is empty, than all commits are after this date.. so just grab the next one
+    # don't forget to remove the $after_commit we just harvested
+    after_commit_1mo=`git rev-list --ancestry-path ${commit_hash}..HEAD $path | grep -v $after_commit | tail -1`
+  else
+    # otherwise use the tmp hash 
+    after_commit_1mo=`git rev-list --ancestry-path ${tmp_hash}..HEAD $path | tail -1`
   fi
 
-  # Identify 2 commits after this one.  Write files.
-  after_commits=`git log $path | grep "^commit" | grep -A 2 $commit_hash | tail -2`
-  if [ "$after_commits" != "" ]; then
-    for ac in $after_commits; do
-      if [ "$ac" != "commit" ]; then
-        log "Downloading (addtl after patch) source code for: $cve $codebase $path $funcs $ac"
-        git show $ac:$path > $SRC_CODE_DIR/$codebase/$cve/after/${ac}_${curr_file}
-      fi
-    done
+  echo "after commit 1mo: $after_commit_1mo"
+
+  # same thing for 6 months...
+  tmp_hash=`git rev-list --ancestry-path --before=$timestamp_6mo_after ${commit_hash}..HEAD $path | head -1`
+  if [ "$tmp_hash" == "" ]; then
+    after_commit_6mo=`git rev-list --ancestry-path ${commit_hash}..HEAD $path | grep -v $after_commit | grep -v $after_commit_1mo | tail -1`
+  else
+    # otherwise use the tmp hash 
+    after_commit_6mo=`git rev-list --ancestry-path ${tmp_hash}..HEAD $path | tail -1`
+  fi
+
+  echo "after commit 6mo: $after_commit_6mo"
+
+  # If we identified any before or after commits, we download them
+  # Before commits
+  if [ "$before_commit" != "" ]; then
+    log "Downloading commit immediately before patch: $cve $codebase $path $funcs $before_commit"
+    mkdir -p $SRC_CODE_DIR/$codebase/$cve/before/imm/$before_commit
+    git show $before_commit:$path > $SRC_CODE_DIR/$codebase/$cve/before/imm/${before_commit}/${curr_file}
+  fi
+
+  if [ "$before_commit_1mo" != "" ]; then
+    log "Downloading commit 1 month before patch: $cve $codebase $path $funcs $before_commit_1mo"
+    mkdir -p $SRC_CODE_DIR/$codebase/$cve/before/1mo/$before_commit_1mo
+    git show $before_commit_1mo:$path > $SRC_CODE_DIR/$codebase/$cve/before/1mo/${before_commit_1mo}/${curr_file}
+  fi
+
+  if [ "$before_commit_6mo" != "" ]; then
+     log "Downloading commit 6 month before patch: $cve $codebase $path $funcs $before_commit_6mo"
+     mkdir -p $SRC_CODE_DIR/$codebase/$cve/before/6mo/$before_commit_6mo
+     git show $before_commit_6mo:$path > $SRC_CODE_DIR/$codebase/$cve/before/6mo/${before_commit_6mo}/${curr_file}
+  fi
+  # After Commits
+  if [ "$after_commit" != "" ]; then
+    log "Downloading commit immediately after patch: $cve $codebase $path $funcs $after_commit"
+    mkdir -p $SRC_CODE_DIR/$codebase/$cve/after/imm/$after_commit
+    git show $after_commit:$path > $SRC_CODE_DIR/$codebase/$cve/after/imm/${after_commit}/${curr_file}
+  fi
+
+  if [ "$after_commit_1mo" != "" ]; then
+    log "Downloading commit 1 month after patch: $cve $codebase $path $funcs $after_commit_1mo"
+    mkdir -p $SRC_CODE_DIR/$codebase/$cve/after/1mo/$after_commit_1mo
+    git show $after_commit_1mo:$path > $SRC_CODE_DIR/$codebase/$cve/after/1mo/${after_commit_1mo}/${curr_file}
+  fi
+
+  if [ "$after_commit_6mo" != "" ]; then
+     log "Downloading commit 6 month after patch: $cve $codebase $path $funcs $after_commit_6mo"
+     mkdir -p $SRC_CODE_DIR/$codebase/$cve/after/6mo/$after_commit_6mo
+     git show $before_commit_6mo:$path > $SRC_CODE_DIR/$codebase/$cve/before/6mo/${before_commit_6mo}/${curr_file}
   fi
 }
 
@@ -105,7 +177,7 @@ function process_commit_lines {
     elif [ "$curr_file" != "" ] && [ "$curr_vuln_id" != "" ] && [ "$curr_patch_id" != "" ] && [ "`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | uniq`" != "" ]; then
       log "Found function line: $line"
       local func_name="`echo $line | grep "@@" | grep -o "[a-zA-Z0-9_]*(" | sed "s/(//g" | tail -1`" # only get the last occurence in case there are some weird return types
-      local curr_funcs="${curr_funcs}${func_name} " # keep track of all
+      local curr_funcs="${curr_funcs}|${func_name}" # keep track of all
     else
       # Nothing important on this line.. skip it
       continue
@@ -123,13 +195,17 @@ function process_commit {
   local codebase=$2
   log "Processing commit: $codebase $commit"
   git show $commit > $SCRATCH_FILE 
-  local cve=`cat $SCRATCH_FILE | grep -o "CVE-[0-9]*-[0-9]*" | head -1`
+  local cve=`cat $SCRATCH_FILE | grep -o "CVE-[0-9]*-[0-9]*" | head -1` # Just get first reference to a CVE
   local num_files_covered=`grep "^diff --git" $SCRATCH_FILE | wc -l`
   if [ $num_files_covered -gt 5 ] || [ $num_files_covered -eq 0 ]; then
-    log "ERROR: This commit covers $num_files_covered files. Skipping it."
+    log "ERROR: This commit covers $num_files_covered files. Skipping it." # Probably a merge
+    let SKIPPED=$SKIPPED+1
+  elif [ -d $SRC_CODE_DIR/$codebase/$cve ]; then
+    log "ERROR: This CVE already covered by previous commit.  Skipping." # Probaly should change this...
     let SKIPPED=$SKIPPED+1
   else
     process_commit_lines $commit $codebase $cve
+    let PROCESSED=$PROCESSED+1
   fi
   rm $SCRATCH_FILE
 }
