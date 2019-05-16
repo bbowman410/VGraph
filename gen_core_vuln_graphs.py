@@ -4,9 +4,14 @@ import networkx as nx
 import pickle as pkl
 import tale
 
+
+# TODO
+#  - perform important node determination & generate BFS trees during vGraph generation
+
 # Some nodes we don't want to pivot through while growing the graph
 SKIP_TYPES=['CFGEntryNode', 'CFGExitNode', 'FunctionDef']
-MIN_NODES=30
+MIN_NODES=50
+MIN_CONTEXT_NODES=50
 
 # We want our graphs to remain connected, so we do that
 def connect_graph(small_graph, big_graph):
@@ -88,8 +93,8 @@ def expand_graph(small_graph, big_graph, num_hops=1):
         #            small_graph.node[n]['code'] = big_graph.node[n]['code']
 
 
-def print_statistics(file_path, v_size, p_size, num_shared_nodes, pcvg_size, ncvg_size):
-    print "%s\t%d\t%d\t%d\t%d\t%d" % (file_path, v_size, p_size, num_shared_nodes, pcvg_size, ncvg_size)
+def print_statistics(file_path, v_size, p_size, num_shared_nodes, pcvg_size, ncvg_size,context_graph_size):
+    print "%s\t%d\t%d\t%d\t%d\t%d\t%d" % (file_path, v_size, p_size, num_shared_nodes, pcvg_size, ncvg_size, context_graph_size)
 
 
 def add_edges(graph_nodes_only, full_graph):
@@ -177,7 +182,7 @@ if len(V.nodes) == len(P.nodes) == len(v_to_p_mapping):
     # This case doesn't make sense.  Clearly this vulnerability does not show manifest itself
     # in a way that will work with our method.
     print "ERROR: V == P (%s)" % vuln_function
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes),len(v_to_p_mapping), 0, 0)
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes),len(v_to_p_mapping), 0, 0,0)
     exit()
 
 #################### positive vGraph GENERATION #############################
@@ -193,6 +198,7 @@ else:
         pvg.add_node(v_node)
         pvg.node[v_node]['type'] = V.node[v_node]['type']
         pvg.node[v_node]['code'] = V.node[v_node]['code']
+        pvg.node[v_node]['style'] = 'o'
         
     add_edges(pvg, V)
     connect_graph(pvg, V)
@@ -212,6 +218,7 @@ else:
         nvg.add_node(p_node)
         nvg.node[p_node]['type'] = P.node[p_node]['type']
         nvg.node[p_node]['code'] = P.node[p_node]['code']
+        nvg.node[p_node]['style'] = 'o'
 
     add_edges(nvg, P)
     connect_graph(nvg, P)
@@ -219,40 +226,69 @@ else:
         expand_graph(nvg, P)
 
 #################### context vGraph #############################
+# Change this
+# For each node in pos, neg graphs
+# add nodes in context space that have edges into those graphs
 context_graph = nx.DiGraph()
-for n in v_to_p_mapping:
+for n in v_to_p_mapping: # These are all shared nodes
     if n in pvg.nodes or v_to_p_mapping[n] in nvg.nodes:
         # these nodes were added during expand_graph
         # skip them so we dont overlap (or should we overlap??)
         continue
 
-    # othrwise these are truely context nodes
-    context_graph.add_node(n)
-    context_graph.node[n]['type'] = V.node[n]['type']
-    context_graph.node[n]['code'] = V.node[n]['code']
+    #context_graph.add_node(n)
+    #context_graph.node[n]['type'] = V.node[n]['type']
+    #context_graph.node[n]['code'] = V.node[n]['code']
+  
+    added=False
+    for n2 in list(V.predecessors(n)) + list(V.successors(n)):
+        if n2 in pvg.nodes:
+            # Found context node because it has edge into pvg
+            context_graph.add_node(n)
+            context_graph.node[n]['type'] = V.node[n]['type']
+            context_graph.node[n]['code'] = V.node[n]['code']
+            added=True
+            break
+    if added: 
+        continue # already added so just move on
+    # otherwise lets check patch nodes
 
+    for n2 in list(P.predecessors(v_to_p_mapping[n])) + list(P.successors(v_to_p_mapping[n])):
+        if n2 in nvg.nodes:
+            # Found context node
+            context_graph.add_node(n)
+            context_graph.node[n]['type'] = V.node[n]['type']
+            context_graph.node[n]['code'] = V.node[n]['code']
+            break
+
+# add edges
 add_edges(context_graph, V)
+# make sure greaph is connected
 connect_graph(context_graph, V)
+
+# Expand until minimum length is met
+while len(context_graph.nodes) < MIN_CONTEXT_NODES and len(context_graph) < (len(V.nodes) - len(pvg.nodes)):
+    expand_graph(context_graph, V)
 
 if len(pvg.nodes) < MIN_NODES or len(nvg.nodes) < MIN_NODES or len(context_graph.nodes)< MIN_NODES:
     print "ERROR: vGraph too small (%s)" % vuln_function
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes) )
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
     exit()
 
 # Sanity checks.  These should always be connected...
 if not nx.is_connected(pvg.to_undirected()):
     print "ERROR: pvg not connected"
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes) )
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
     exit()
 
 if not nx.is_connected(nvg.to_undirected()):
     print "ERROR: nvg not connected"
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes) )
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
     exit()
 
 if not nx.is_connected(context_graph.to_undirected()):
     print "ERROR: context not connected"
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes) )
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
     exit()
 
 # If we get here we are good
@@ -268,4 +304,4 @@ nx.write_gpickle(context_graph, context_graph_output_file)
 pkl.dump(v_to_p_mapping, open(context_mapping_output_file, 'w'))
 
 # Print final statistics
-print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes), len(nvg.nodes))
+print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes), len(nvg.nodes), len(context_graph.nodes))

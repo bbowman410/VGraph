@@ -63,7 +63,7 @@ def get_all_graphs(nodes_file, edge_list):
                 # row[5] is function location in line_num:x:x:x
                 # This function is in our funcnames list.  So we want it!
                 curr_meta['location'] = row[4]
-                curr_meta['graph'] = nx.Graph()
+                curr_meta['graph'] = nx.DiGraph()
                 curr_meta['name'] = row[3]
                 processing_func = True
             else:
