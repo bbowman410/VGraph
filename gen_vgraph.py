@@ -189,7 +189,7 @@ def align(src_graph, dst_graph):
 ###############################################
 
 if len(sys.argv) != 5:
-    print "Usage: python gen_core_vuln_graphs.py <vuln_graph> <patch_graph> <output_path> <output_name>"
+    print "Usage: python gen_vgraph.py <vuln_graph> <patch_graph> <output_path> <output_name>"
     exit()
 
 # Read inputs
