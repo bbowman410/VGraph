@@ -30,6 +30,14 @@ function download_data {
   local funcs=$5
   local vuln_hash=$6
   local patch_hash=$7
+
+  # before and after commit vars
+  local before_commit=""
+  local before_commit_1mo=""
+  local before_commit_6mo=""
+  local after_commit=""
+  local after_commit_1mo=""
+  local after_commit_6mo=""
   
   log "Downloading source code: $cve $codebase $path $funcs $commit_hash"
 
@@ -56,20 +64,20 @@ function download_data {
   let timestamp_6mo_after=$timestamp+15552000
 
   # Immediately before the patching commit
-  before_commit=`git rev-list $commit_hash $path | head -2 | grep -v $commit_hash`
+  local before_commit=`git rev-list $commit_hash -- $path | head -2 | grep -v $commit_hash`
 
   if [ "$before_commit" != "" ]; then
     # at least 1 month before the patching commit
-    before_commit_1mo=`git rev-list --min-age=$timestamp_1mo_before $commit_hash $path | grep -v $before_commit | head -1`
+    local before_commit_1mo=`git rev-list --min-age=$timestamp_1mo_before $commit_hash -- $path | grep -v $before_commit | head -1`
   fi
  
   if [ "$before_commit_1mo" != "" ]; then
     # 6 month before the patching commit
-    before_commit_6mo=`git rev-list --min-age=$timestamp_6mo_before $commit_hash $path | grep -v $before_commit | grep -v $before_commit_1mo | head -1`
+    local before_commit_6mo=`git rev-list --min-age=$timestamp_6mo_before $commit_hash -- $path | grep -v $before_commit | grep -v $before_commit_1mo | head -1`
   fi
 
   # Immediately after the patching commit
-  after_commit=`git rev-list --ancestry-path ${commit_hash}..HEAD $path | tail -1`
+  local after_commit=`git rev-list --ancestry-path ${commit_hash}..HEAD -- $path | tail -1`
 
   # There is no easy way to get after commits after some time (annoying)
   # Instead, we get all commits between the patching commit, and our cutoff time
@@ -78,25 +86,25 @@ function download_data {
   # Only makes sense to conitnue if we found an initial after commit
   if [ "$after_commit" != "" ]; then
     # this gets the NEWEST commit that is still OLDER than time cutoff.
-    tmp_hash=`git rev-list --ancestry-path --before=$timestamp_1mo_after ${commit_hash}..HEAD $path | head -1`
+    local tmp_hash=`git rev-list --ancestry-path --before=$timestamp_1mo_after ${commit_hash}..HEAD -- $path | head -1`
     if [ "$tmp_hash" == "" ]; then
       # if tmp_hash is empty, then all commits are after the cutoff time... so just grab the next one
       # don't forget to remove to he $after_commit we just harvested (provided its not empty)
-      after_commit_1mo=`git rev-list --ancestry-path ${commit_hash}..HEAD $path | grep -v $after_commit | tail -1`
+      local after_commit_1mo=`git rev-list --ancestry-path ${commit_hash}..HEAD -- $path | grep -v $after_commit | tail -1`
     else
       # otherwise use the tmp hash 
-      after_commit_1mo=`git rev-list --ancestry-path ${tmp_hash}..HEAD $path | tail -1`
+      local after_commit_1mo=`git rev-list --ancestry-path ${tmp_hash}..HEAD -- $path | tail -1`
     fi
   fi
  
   # only makes sense to continue if we found a 1month commit
   if [ "$after_commit_1mo" != "" ]; then
-    tmp_hash=`git rev-list --ancestry-path --before=$timestamp_6mo_after ${commit_hash}..HEAD $path | head -1`
+    local tmp_hash=`git rev-list --ancestry-path --before=$timestamp_6mo_after ${commit_hash}..HEAD -- $path | head -1`
     if [ "$tmp_hash" == "" ]; then
-      after_commit_6mo=`git rev-list --ancestry-path ${commit_hash}..HEAD $path | grep -v $after_commit | grep -v $after_commit_1mo | tail -1`
+      local after_commit_6mo=`git rev-list --ancestry-path ${commit_hash}..HEAD -- $path | grep -v $after_commit | grep -v $after_commit_1mo | tail -1`
     else
       # otherwise use the tmp hash 
-      after_commit_6mo=`git rev-list --ancestry-path ${tmp_hash}..HEAD $path | tail -1`
+      local after_commit_6mo=`git rev-list --ancestry-path ${tmp_hash}..HEAD -- $path | tail -1`
     fi
   fi
 

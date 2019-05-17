@@ -4,14 +4,47 @@ import networkx as nx
 import pickle as pkl
 import tale
 
-
-# TODO
-#  - perform important node determination & generate BFS trees during vGraph generation
-
 # Some nodes we don't want to pivot through while growing the graph
 SKIP_TYPES=['CFGEntryNode', 'CFGExitNode', 'FunctionDef']
 MIN_NODES=50
 MIN_CONTEXT_NODES=50
+
+
+def get_important_ndoes(G,p=0.1):
+    ''' 
+    This function returns a list of "important" nodes which will be used during matching.  We use node degree to determine importance.  Although we should not avoid the common nodes with high degree.
+ 
+    p is the fraction of nodes to return
+    '''
+    # import based on degree
+    node_degree_dict = {}
+    nodes_to_return = int(len(G.nodes()) * p)
+    for n in G.nodes:
+        node_degree_dict[n] = G.degree(n)
+
+    important_nodes = []
+
+    for node_id, degree in reversed(sorted(node_degree_dict.iteritems(), key=lambda (k,v): (v,k))):
+
+        important_nodes.append(node_id)
+        nodes_to_return -= 1
+
+        if nodes_to_return <= 0:
+            break
+
+    return important_nodes
+
+def get_bfs_trees(G,important_nodes):
+    '''
+    This function generates the undirected BFS tree for each important node in the graph G.  This BFS tree will be used by the matching algorithms to direct the match path.
+    '''
+    bfs_trees = {}
+    for n in important_nodes:
+        bfs_trees[n] = nx.bfs_tree(G.to_undirected(), n)
+
+    return bfs_trees
+
+
 
 # We want our graphs to remain connected, so we do that
 def connect_graph(small_graph, big_graph):
@@ -98,6 +131,9 @@ def print_statistics(file_path, v_size, p_size, num_shared_nodes, pcvg_size, ncv
 
 
 def add_edges(graph_nodes_only, full_graph):
+    '''
+    This function adds any edges between nodes in the first graph based on the edges found in the second graph
+    '''
     # finish graph by adding relevant edges
     for n in graph_nodes_only.nodes:
         for neighbor in full_graph[n]:
@@ -106,10 +142,11 @@ def add_edges(graph_nodes_only, full_graph):
                 graph_nodes_only[n][neighbor]['type'] = full_graph[n][neighbor]['type']
 
 
-# This function is for matching nodes from vuln/patch graphs
-# This means majority of the graph structure will be the same
-# So we can take some shortcuts here
-def heuristic_match(src_graph, dst_graph):
+def align(src_graph, dst_graph):
+    '''
+    Take as input two graphs and align the common nodes.
+    '''
+
     src_to_dst_mapping = {}
     dst_to_src_mapping = {}
 
@@ -155,32 +192,46 @@ if len(sys.argv) != 5:
     print "Usage: python gen_core_vuln_graphs.py <vuln_graph> <patch_graph> <output_path> <output_name>"
     exit()
 
+# Read inputs
 vuln_graph = sys.argv[1]
 patch_graph = sys.argv[2]
 output_path = sys.argv[3]
 output_name= sys.argv[4]
+
+# vgraph ID
 vuln_function = output_path + '/' + output_name
+
+# Graph Outputs
 pvg_output_file = output_path + '/' + output_name  + "_pvg.gpickle"
 nvg_output_file = output_path + '/' + output_name + "_nvg.gpickle"
-context_mapping_output_file = output_path + '/' + output_name + ".context_mapping"
-context_graph_output_file = output_path + '/' + output_name + "_context.gpickle"
+cvg_output_file = output_path + '/' + output_name + "_cvg.gpickle"
 
-# Read graphs
+# Important Node Outputs
+pvg_imp_nodes_output_file = output_path + '/' + output_name + "_pvg_imp_nodes.pkl"
+nvg_imp_nodes_output_file = output_path + '/' + output_name + "_nvg_imp_nodes.pkl"
+cvg_imp_nodes_output_file = output_path + '/' + output_name + "_cvg_imp_nodes.pkl"
+
+# BFS Outputs 
+pvg_bfs_trees_output_file = output_path + '/' + output_name + "_pvg_bfs_trees.pkl"
+nvg_bfs_trees_output_file = output_path + '/' + output_name + "_nvg_bfs_trees.pkl"
+cvg_bfs_trees_output_file = output_path + '/' + output_name + "_cvg_bfs_trees.pkl"
+
+# Read in the vulnerable and patched graphs
 V = nx.read_gpickle(vuln_graph)
 P = nx.read_gpickle(patch_graph)
 print "V size: %d" % len(V.nodes)
 print "P size: %d" % len(P.nodes)
 
-# Heuristic graph match
-v_to_p_mapping, p_to_v_mapping = heuristic_match(V,P)
+# Align the vulnerable and patch graphs
+# We could probably do this in a more clever way from source code and diff files
+v_to_p_mapping, p_to_v_mapping = align(V,P)
 
 print "Number of shared nodes (SN): %d" % len(v_to_p_mapping)
 print "Positive vGraph base size (V - SN): %d" % (len(V.nodes) - len(v_to_p_mapping))
 print "Negative vGraph base size (P-SN): %d" % (len(P.nodes) - len(v_to_p_mapping))
 
 if len(V.nodes) == len(P.nodes) == len(v_to_p_mapping):
-    # This case doesn't make sense.  Clearly this vulnerability does not show manifest itself
-    # in a way that will work with our method.
+    # All V nodes were in P and vica versa.  So no way to model vulnerability.
     print "ERROR: V == P (%s)" % vuln_function
     print_statistics(vuln_function, len(V.nodes), len(P.nodes),len(v_to_p_mapping), 0, 0,0)
     exit()
@@ -188,8 +239,6 @@ if len(V.nodes) == len(P.nodes) == len(v_to_p_mapping):
 #################### positive vGraph GENERATION #############################
 if len(v_to_p_mapping) == len(V.nodes):
     # all V nodes are in patch.  So treat all nodes in V as positive core graph
-    # This could probably be modified to use a heuristic to include only the nodes
-    # which are related to the new nodes in patch graph in some way.
     pvg = V.copy()
 else:
     pvg = nx.DiGraph()
@@ -199,11 +248,16 @@ else:
         pvg.node[v_node]['type'] = V.node[v_node]['type']
         pvg.node[v_node]['code'] = V.node[v_node]['code']
         pvg.node[v_node]['style'] = 'o'
-        
+            
     add_edges(pvg, V)
-    connect_graph(pvg, V)
+    connect_graph(pvg, V) # we need a connected graph to do our matching
+
+    # Keep adding nodes until we meet our minimum node size
     while len(pvg.nodes) < MIN_NODES and len(pvg.nodes) < len(V.nodes):
         expand_graph(pvg, V)
+
+    pvg_imp_nodes=get_important_nodes(pvg)
+    pvg_bfs_trees=get_bfs_trees(pvg, pvg_imp_nodes)
 
 ################## negative vGraph GENERATION ############################
 if len(v_to_p_mapping) == len(P.nodes):
@@ -225,28 +279,26 @@ else:
     while len(nvg.nodes) < MIN_NODES and len(nvg.nodes) < len(P.nodes):
         expand_graph(nvg, P)
 
+    nvg_imp_nodes=get_important_nodes(pvg)
+    nvg_bfs_trees=get_bfs_trees(nvg, nvg_imp_nodes)
+
 #################### context vGraph #############################
-# Change this
 # For each node in pos, neg graphs
 # add nodes in context space that have edges into those graphs
-context_graph = nx.DiGraph()
+cvg = nx.DiGraph()
 for n in v_to_p_mapping: # These are all shared nodes
     if n in pvg.nodes or v_to_p_mapping[n] in nvg.nodes:
         # these nodes were added during expand_graph
         # skip them so we dont overlap (or should we overlap??)
         continue
 
-    #context_graph.add_node(n)
-    #context_graph.node[n]['type'] = V.node[n]['type']
-    #context_graph.node[n]['code'] = V.node[n]['code']
-  
     added=False
     for n2 in list(V.predecessors(n)) + list(V.successors(n)):
         if n2 in pvg.nodes:
-            # Found context node because it has edge into pvg
-            context_graph.add_node(n)
-            context_graph.node[n]['type'] = V.node[n]['type']
-            context_graph.node[n]['code'] = V.node[n]['code']
+            # Found context node because it has incoming or outgoing edge into PVG
+            cvg.add_node(n)
+            cvg.node[n]['type'] = V.node[n]['type']
+            cvg.node[n]['code'] = V.node[n]['code']
             added=True
             break
     if added: 
@@ -255,40 +307,42 @@ for n in v_to_p_mapping: # These are all shared nodes
 
     for n2 in list(P.predecessors(v_to_p_mapping[n])) + list(P.successors(v_to_p_mapping[n])):
         if n2 in nvg.nodes:
-            # Found context node
-            context_graph.add_node(n)
-            context_graph.node[n]['type'] = V.node[n]['type']
-            context_graph.node[n]['code'] = V.node[n]['code']
+            # Found context node because it has incoming or outgoing edge into NVG
+            cvg.add_node(n)
+            cvg.node[n]['type'] = V.node[n]['type']
+            cvg.node[n]['code'] = V.node[n]['code']
             break
 
-# add edges
-add_edges(context_graph, V)
-# make sure greaph is connected
-connect_graph(context_graph, V)
+add_edges(cvg, V) # shared nodes so V==P for these nodes
+connect_graph(cvg, V)
 
 # Expand until minimum length is met
-while len(context_graph.nodes) < MIN_CONTEXT_NODES and len(context_graph) < (len(V.nodes) - len(pvg.nodes)):
-    expand_graph(context_graph, V)
+while len(cvg.nodes) < MIN_CONTEXT_NODES and len(cvg) < (len(V.nodes) - len(pvg.nodes)):
+    expand_graph(cvg, V)
 
-if len(pvg.nodes) < MIN_NODES or len(nvg.nodes) < MIN_NODES or len(context_graph.nodes)< MIN_NODES:
+cvg_imp_nodes=get_important_nodes(cvg)
+cvg_bfs_trees=get_bfs_trees(cvg, cvg_imp_nodes)
+
+
+###############    Final Sanity Checks: ###########################
+if len(pvg.nodes) < MIN_NODES or len(nvg.nodes) < MIN_NODES or len(cvg.nodes)< MIN_NODES:
     print "ERROR: vGraph too small (%s)" % vuln_function
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(cvg.nodes) )
     exit()
 
-# Sanity checks.  These should always be connected...
 if not nx.is_connected(pvg.to_undirected()):
-    print "ERROR: pvg not connected"
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
+    print "ERROR: PVG not connected"
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(cvg.nodes) )
     exit()
 
 if not nx.is_connected(nvg.to_undirected()):
-    print "ERROR: nvg not connected"
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
+    print "ERROR: NVG not connected"
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(cvg.nodes) )
     exit()
 
-if not nx.is_connected(context_graph.to_undirected()):
-    print "ERROR: context not connected"
-    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(context_graph.nodes) )
+if not nx.is_connected(cvg.to_undirected()):
+    print "ERROR: CVG not connected"
+    print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes),len(nvg.nodes), len(cvg.nodes) )
     exit()
 
 # If we get here we are good
@@ -298,10 +352,17 @@ if not os.path.exists(output_path):
 # Write vGraph files
 nx.write_gpickle(pvg, pvg_output_file)
 nx.write_gpickle(nvg, nvg_output_file)
-nx.write_gpickle(context_graph, context_graph_output_file)
+nx.write_gpickle(cvg, cvg_output_file)
 
-# Write mapping of pvg to nvg so we know what nodes are context nodes
-pkl.dump(v_to_p_mapping, open(context_mapping_output_file, 'w'))
+# Write important nodes files
+pkl.dump(pvg_imp_nodes, open(pvg_imp_nodes_output_file, 'w'))
+pkl.dump(nvg_imp_nodes, open(nvg_imp_nodes_output_file, 'w'))
+pkl.dump(cvg_imp_nodes, open(cvg_imp_nodes_output_file, 'w'))
+
+# Write BFS trees
+pkl.dump(pvg_bfs_trees, open(pvg_bfs_trees_output_file, 'w'))
+pkl.dump(nvg_bfs_trees, open(nvg_bfs_trees_output_file, 'w'))
+pkl.dump(cvg_bfs_trees, open(cvg_bfs_trees_output_file, 'w'))
 
 # Print final statistics
-print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes), len(nvg.nodes), len(context_graph.nodes))
+print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(v_to_p_mapping), len(pvg.nodes), len(nvg.nodes), len(cvg.nodes))
