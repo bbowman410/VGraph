@@ -120,26 +120,11 @@ def extract_func(from_file, to_file, location):
     with open(from_file, 'r') as f:
         char_list = list(f.read())
         return char_list[buf_start:buf_end+1]
-        #for c in char_list[buf_start:buf_end+1]:
-        #    sys.stdout.write(c)
-        #sys.stdout.flush()
-        #print char_list[buf_start:buf_end + 1]
-        #exit()
         
 
-vuln_code_dir = 'src_files'
-output_dir = 'vuln_patch_graph_db'
-parsed_base_dir = 'parsed'
-
-
-# Determine the base dir for our parsed directory strucure
-while True:
-    d = os.listdir(parsed_base_dir)[0]
-    if d != 'src_files':
-        parsed_base_dir += '/' + d
-    else:
-        parsed_base_dir += '/src_files'
-        break
+vuln_code_dir=sys.argv[1]
+parsed_dir=sys.argv[2]
+output_dir=sys.argv[3]
 
 
 # For every code repository...
@@ -151,10 +136,16 @@ for repo in os.listdir(vuln_code_dir):
 
         # Get names of functions of interest
         function_names = []
-        for f_name in open(vuln_code_dir + '/' + repo + '/' + cve + '/funcnames').readlines():
-            f_name = f_name.rstrip()
-            if f_name:
-                function_names.append(f_name) 
+        try:
+            with open(vuln_code_dir + '/' + repo + '/' + cve + '/funcnames') as fp:
+                for f_name in fp.readlines():
+                    f_name = f_name.rstrip()
+                    if f_name:
+                        function_names.append(f_name) 
+        except:
+            # Error opening function names file.  Skip
+            print("Error opening funcnames file for %s/%s...Skipping" % (repo, cve))
+            continue
 
         # Get list of vuln files 
         vuln_file_names = []
@@ -167,6 +158,11 @@ for repo in os.listdir(vuln_code_dir):
         for h in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/patch/'): 
             for f in os.listdir(vuln_code_dir + '/' + repo + '/' + cve + '/patch/' + h): 
                 patch_file_names.append('%s/%s' % (h,f))
+
+        # Must have been an error generating these files.  Skip.
+        if len(vuln_file_names) == 0 or len(patch_file_names) == 0:
+            print("Missing vulnerable or patched files for %s/%s...Skipping" % (repo, cve))
+            continue
 
         # Get list of before patch files (also vuln)
         before_file_names = []
@@ -192,8 +188,8 @@ for repo in os.listdir(vuln_code_dir):
                 (before_file_names, 'before'),
                 (after_file_names, 'after')]:
             for f in f_names:
-                parsed_file_nodes = "%s/%s/%s/%s/%s/nodes.csv" % (parsed_base_dir,repo,cve,d,f)
-                parsed_file_edges = "%s/%s/%s/%s/%s/edges.csv" % (parsed_base_dir,repo,cve,d,f)
+                parsed_file_nodes = "%s/%s/%s/%s/%s/%s/nodes.csv" % (parsed_dir,vuln_code_dir,repo,cve,d,f)
+                parsed_file_edges = "%s/%s/%s/%s/%s/%s/edges.csv" % (parsed_dir,vuln_code_dir,repo,cve,d,f)
                 edge_list = get_edge_list(parsed_file_edges)
                 graphs = get_graphs(parsed_file_nodes, function_names)
                 # Now need to write out data

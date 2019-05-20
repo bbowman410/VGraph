@@ -16,8 +16,11 @@
 # processing later.
 
 LOG_FILE=`pwd`'/gen_src_files.log'
+echo $LOG_FILE
 SCRATCH_FILE=`pwd`'/scratch'
+echo $SCRATCH_FILE
 SRC_CODE_DIR=`pwd`'/src_files'
+echo $SRC_CODE_DIR
 SKIPPED=0
 PROCESSED=0
 
@@ -190,7 +193,7 @@ function process_commit_lines {
       # Nothing important on this line.. skip it
       continue
     fi
-  done < <(cat $SCRATCH_FILE)
+  done < $SCRATCH_FILE
   
   # We still may need to write out a file
   if [ "$curr_file" != "" ] && [ "$curr_funcs" != "" ] && [ "$curr_vuln_id" != "" ] && [ "$curr_patch_id" != "" ]; then
