@@ -1,3 +1,21 @@
+# Workflow notes
+
+Step 1: Vulnerable and Patched Source code mining.  
+ - Crawl Github looking for "CVE".  Download revisions of that file before, label as patched to that CVE.  Download revisions of that file after, label as vulnerable to that CVE.
+ 
+Step 2: Graph conversion
+ - Convert source code into a graph via Joern 
+ 
+Step 2: vGraph Generation.
+  - Use the graph of function directly before, and directly after vulnerability to create vGraph which contains nodes, edges from both the vulnerable function and the patched function, labeled appropriately
+  
+ Step 3: Vulnerability Detection
+  - Use vGraphs to identify functions likely to be vulnerable to same CVE.  This will be based on some type of graph matching algorithm.  E.g., if it contains most of edges from vulnerable function, and does not have edges to patched function, label it as vulnerable
+  
+ Evaluation will be based on files mined from Github which were not used in generating the vGraph.
+ 
+ Additionally we will test vGraph on new source code projects and try to find some bugs.
+
 # vGraph Database Generation
 
 ## Vulnerability Source Code Database Generation
