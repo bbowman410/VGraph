@@ -16,3 +16,4 @@ for d in `ls repos`; do
     git log --no-merges --grep=$GREP_STRING | grep "^commit" | awk '{print $2}' > ../../commits/$d.commits
     cd ../../
 done
+echo "Done!"
