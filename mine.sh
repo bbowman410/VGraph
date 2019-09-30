@@ -49,7 +49,7 @@ done
 # Use Joern to parse the directory
 
 echo "Parsing $VULN_PATCH_DIR"
-#$JOERN $VULN_PATCH_DIR # generates a parsed directory containing our parsed data
+$JOERN $VULN_PATCH_DIR # generates a parsed directory containing our parsed data
 
 # Generating graphs and extracting code
 echo "Generating vuln patch graph database..."
