@@ -4,7 +4,7 @@ import csv
 import networkx as nx
 import pickle as pkl
 
-from src.graph.utils import joern_to_networkx, tripleize
+from src.graph.utils import joern_to_networkx, tripleize, vectorize
 
 
 def write_graph(graph, base_dir, repo, cve, v_or_p, file_name, func_name):
@@ -16,8 +16,9 @@ def write_graph(graph, base_dir, repo, cve, v_or_p, file_name, func_name):
 
     trips = tripleize(graph)
     pkl.dump(trips, open(path + '/' + func_name + '.triples', 'wb'))
-    
-    
+
+    vec = vectorize(graph)
+    pkl.dump(vec, open(path + '/' + func_name + '.vec', 'wb'))
 
 def write_code(char_buf, base_dir, repo, cve, v_or_p, file_name, func_name):
     path = "%s/%s/%s/%s/%s/code" % (base_dir, repo, cve, v_or_p, file_name)

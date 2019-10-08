@@ -100,6 +100,28 @@ def tripleize(G):
 
     return G_trips
 
+def vectorize(G):
+    vector_dims = [ 'FLOWS_TO','DECLARES','IS_CLASS_OF','REACHES','CONTROLS','DOM','POST_DOM','USE','DEF','IS_AST_PARENT','CallExpression','Callee','Function','ArgumentList','AssignmentExpr','File','IdentifierDeclStatement','Parameter','Symbol', 'PostIncDecOperationExpression', 'Identifier', 'IncDec', 'ExpressionStatement', 'AssignmentExpression', 'ArrayIndexing','IfStatement', 'Condition', 'AdditiveExpression', 'Argument' , 'PrimaryExpression', 'CastExpression', 'CastTarget', 'PtrMemberAccess','Statement', 'ReturnStatement', 'EqualityExpression', 'ElseStatement', 'ParameterType', 'ParameterList', 'SizeofExpression', 'IdentifierDeclType', 'UnaryOperator', 'MultiplicativeExpression', 'MemberAccess', 'FunctionDef', 'AndExpression', 'CFGEntryNode', 'UnaryOperationExpression', 'ForStatement', 'ForInit', 'ShiftExpression', 'ReturnType', 'Sizeof', 'BreakStatement', 'OrExpression', 'WhileStatement', 'SizeofOperand', 'IdentifierDecl', 'CompoundStatement', 'CFGExitNode', 'RelationalExpression', 'BitAndExpression','CFGErrorNode','ClassDef','ClassDefStatement','ConditionalExpression','ContinueStatement','Decl','DeclStmt','DoStatement','ExclusiveOrExpression','Expression','GotoStatement','InclusiveOrExpression','InitializerList','Label','SwitchStatement','UnaryExpression']
+    vec = [0] * len(vector_dims)
+    for n in G.nodes():
+        t = G.node[n]['type']
+        if t in vector_dims:
+            vec[vector_dims.index(t)] += 1
+        else:
+            print("Missing node type: ", t)
+
+    for (n1,n2) in G.edges():
+        for e in G[n1][n2]: # multi edges
+            t = G[n1][n2][e]['type']
+            if t in vector_dims:
+                vec[vector_dims.index(t)] += 1
+            else:
+                print("Missing edge type: ", t)
+    return vec
+
+
+
+
 def load_vgraph_db(root):
     vgraph_db=[]
     for repo in os.listdir(root):
@@ -110,9 +132,10 @@ def load_vgraph_db(root):
                         if func.endswith('_pvg.pkl'):
                             # Found vGraph
                             func_root = str(func[:-8])
-                            cvg=pkl.load(open('./vgraph_db/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'cvg.pkl'),'rb'))
-                            pvg=pkl.load(open('./vgraph_db/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'pvg.pkl'),'rb'))
-                            nvg=pkl.load(open('./vgraph_db/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'nvg.pkl'),'rb'))
+                            cvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'cvg.pkl'),'rb'))
+                            pvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'pvg.pkl'),'rb'))
+                            nvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'nvg.pkl'),'rb'))
+                            vec=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'vec.pkl'),'rb'))
                             vgraph_db.append({
                                 'repo':repo,
                                 'cve':cve,
@@ -121,7 +144,8 @@ def load_vgraph_db(root):
                                 'func':func_root,
                                 'cvg':cvg,
                                 'pvg':pvg,
-                                'nvg':nvg
+                                'nvg':nvg,
+                                'vec':vec
                             })
 
     return vgraph_db
@@ -132,11 +156,16 @@ def load_target_db(root):
         for f in files:
             if f.endswith(".gpickle"): # this is a target graph
                 base_name = f[:-len('.gpickle')]
-                target_graph_db.append({
-                    'path':"%s/%s" % (root, f),
-                    #'graph': nx.read_gpickle("%s/%s" % (root, f)),
-                    'triples': pkl.load(open("%s/%s" % (root, base_name + '.triples'), 'rb'))
-                })
+                try:
+                    target_graph_db.append({
+                        'path':"%s/%s" % (root, f),
+                        #'graph': nx.read_gpickle("%s/%s" % (root, f)),
+                        'triples': pkl.load(open("%s/%s" % (root, base_name + '.triples'), 'rb')),
+                        'vec': pkl.load(open("%s/%s" % (root, base_name + '.vec'), 'rb'))
+                    })
+                except:
+                    # error loading target.  skip.
+                    continue
     return target_graph_db
 
 

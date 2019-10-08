@@ -3,7 +3,8 @@ import sys
 import networkx as nx
 import pickle as pkl
 
-from src.graph.utils import tripleize
+from src.graph.utils import tripleize, vectorize
+
 
 def gen_triplets(V,P):
     '''
@@ -23,6 +24,7 @@ def gen_triplets(V,P):
     nvg=P_trips.difference(V_trips)
   
     return cvg, pvg, nvg
+
 
 
 def print_statistics(file_path, v_size, p_size, cvg_size, pvg_size, nvg_size):
@@ -52,6 +54,8 @@ if __name__ == "__main__":
     pvg_output_file = output_path + '/' + output_name  + "_pvg.pkl"
     nvg_output_file = output_path + '/' + output_name + "_nvg.pkl"
     cvg_output_file = output_path + '/' + output_name + "_cvg.pkl"
+    # Vector Output
+    vec_output_file = output_path + '/' + output_name + "_vec.pkl"
 
     # Read in the vulnerable and patched graphs
     V = nx.read_gpickle(vuln_graph)
@@ -60,6 +64,7 @@ if __name__ == "__main__":
     print("P size: %d" % len(P.nodes))
 
     cvg, pvg, nvg = gen_triplets(V,P)
+    vec = vectorize(V)
     # Check here to make sure we generated some meanigful information
     if len(cvg) == 0 or len(pvg) == 0 or len(nvg) == 0:
         print("Error: vGraph critical component empty.  Skipping")
@@ -73,6 +78,9 @@ if __name__ == "__main__":
     pkl.dump(cvg, open(cvg_output_file, 'wb'))
     pkl.dump(pvg, open(pvg_output_file, 'wb'))
     pkl.dump(nvg, open(nvg_output_file, 'wb'))
+    print(vec)
+    print("Dumping vec")
+    pkl.dump(vec, open(vec_output_file, 'wb'))
 
     # Print final statistics
     print_statistics(vuln_function, len(V.nodes), len(P.nodes), len(cvg), len(pvg), len(nvg))

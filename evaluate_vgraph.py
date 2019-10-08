@@ -1,4 +1,7 @@
 import os
+import filecmp
+from tqdm import tqdm
+import numpy as np
 import pickle as pkl
 from src.graph.utils import load_vgraph_db, load_target_db
 from src.matching.triplet_match import *
@@ -47,14 +50,26 @@ def eval_vgraph(vgraph_db, target_db, gt):
     NVG_THRESH=50
     # Loop through target graphs.  Get any vGraph hits and evaluate for truthiness
     hits={}
+    skipped=0
+    pbar = tqdm(total=len(target_db)*len(vgraph_db))
     for tg in target_db:
         t_trips = tg['triples']
+        t_vec = np.array(tg['vec'])
         tg['hits'] = [] # place to put hits
         for vg in vgraph_db:
-            cvg_score, pvg_score, nvg_score = triplet_match_exact(vg, t_trips)
-            if cvg_score > CVG_THRESH and pvg_score > PVG_THRESH and nvg_score < NVG_THRESH:
-                # we have a hit
-                tg['hits'].append(vg)
+            vg_vec = np.array(vg['vec']) 
+            if np.square(vg_vec-t_vec).mean() < 50.:
+                cvg_score, pvg_score, nvg_score = triplet_match_approx(vg, t_trips)
+                #if cvg_score > CVG_THRESH and pvg_score > PVG_THRESH and nvg_score < NVG_THRESH:
+                # .. what happens if we try just pvg/nvg?
+                if pvg_score > PVG_THRESH and nvg_score < NVG_THRESH:
+                    # we have a hit
+                    tg['hits'].append(vg)
+            else:
+                skipped+=1
+            pbar.update(1)
+    pbar.close()
+    print("Num skipped from graph vector filter: ", skipped)
     # Now we score
 
     # Score all:
@@ -190,8 +205,45 @@ def eval_vgraph(vgraph_db, target_db, gt):
         if not ('/before/' in tg['path'] or '/after/' in tg['path']):
             continue # only before/after
 
-        # now need to check and make sure this func actually different from original func
-        #TODO 
+        #print(tg['path'])
+        #data/vuln_patch_graph_db/ffmpeg/CVE-2013-0868/after/2793b218bdd59db51f1f5c960c508fea7190310e_1407122995/huffyuvdec.c/graph/decode_frame.gpickle
+        d = '/'.join(tg['path'].split('/')[0:4]) # root/repo/CVE
+        func = tg['path'].split('/')[-1] # function.gpickle
+
+        if '/before/' in tg['path']: # should be vuln
+            is_same = False
+            for (root,dirs,files) in os.walk(d):
+                if func in files and '/vuln/' in root:
+                   # This is orig vuln file.  lets check for differences
+                   before_src = tg['path'].replace('/graph/', '/code/')
+                   before_src = before_src.replace('.gpickle','.c')
+                   vuln_src = (root + '/' + func).replace('/graph/','/code/')
+                   vul_src = vuln_src.replace('.gpickle','.c')
+                   if filecmp.cmp(after_src, patch_src):
+                       # found match
+                       is_same = True
+                       break
+            if is_same:
+                continue # skip this one
+        else: # after patch so should be patched
+            is_same = False
+            for (root,dirs,files) in os.walk(d):
+                if func in files and '/patch/' in root:
+                   # This is orig vuln file.  lets check for differences
+                   after_src = tg['path'].replace('/graph/', '/code/')
+                   after_src = after_src.replace('.gpickle','.c')
+                   patch_src = (root + '/' + func).replace('/graph/','/code/')
+                   patch_src = patch_src.replace('.gpickle','.c')
+                   if filecmp.cmp(after_src, patch_src):
+                       is_same = True
+                       break
+            if is_same:
+                continue # skip this
+
+        # If we make it here, this is either a before/after target graph which has
+        # source code thats modified from the vuln/patch file used to generate vGraph
+
+        # score it
         if len(tg['hits']) == 0: # nothing hit on this target
             if '/patch/' in tg['path'] or '/after/' in tg['path']:
                 TN +=1
@@ -217,12 +269,15 @@ def eval_vgraph(vgraph_db, target_db, gt):
                         if(PRINT_UNK):
                             print("UNK: %s %s/%s/%s/%s/%s)" % (tg['path'], vg['repo'], vg['cve'], vg['hsh'],vg['file'], vg['func']))
 
+
+
     P = TP/(TP+FP)
     R = TP/(TP+FN)
     F1 = 2*(P*R)/(P+R)
     print("Test Modified")
-    print("TP\tFP\tTN\tFN\tUNK\tP\tR\tF1")   
+    print("TP\tFP\tTN\tFN\tUNK\tP\tR\tF1")
     print("%d\t%d\t%d\t%d\t%d\t%02f\t%02f\t%02f"%(TP,FP,TN,FN,UNK,P,R,F1))
+
 
 
 

@@ -10,10 +10,9 @@ for repo in `ls $VULN_PATCH_DB`; do
     for cve in `ls $VULN_PATCH_DB/$repo`; do
         for hsh in `ls $VULN_PATCH_DB/$repo/$cve/vuln/`; do
             for src_file in `ls $VULN_PATCH_DB/$repo/$cve/vuln/$hsh`; do
-                for func in `ls $VULN_PATCH_DB/$repo/$cve/vuln/$hsh/$src_file/graph | sed 's/.gpickle//'`; do
-                    if [ -f $VGRAPH_DB/$repo/$cve/$hsh/$src_file/${func}_cvg.gpickle ]; then
-                        echo "vGraph already generated for ${repo} ${cve}i ${func}...Skipping" >> $LOG_FILE
-                    elif [ ! -f $VULN_PATCH_DB/$repo/$cve/vuln/$hsh/$src_file/graph/${func}.gpickle ]; then
+                for g in `ls $VULN_PATCH_DB/$repo/$cve/vuln/$hsh/$src_file/graph | grep 'gpickle'`; do
+                    func=`echo $g | sed 's/.gpickle//'`
+                    if [ ! -f $VULN_PATCH_DB/$repo/$cve/vuln/$hsh/$src_file/graph/${func}.gpickle ]; then
                         echo "Missing vulnerable graph for ${repo} ${cve} ${func}...Skipping" >> $LOG_FILE
                     elif [ ! -f $VULN_PATCH_DB/$repo/$cve/patch/$hsh/$src_file/graph/${func}.gpickle ]; then
                         echo "Missing patched graph for ${repo} ${cve} ${func}...Skipping" >> $LOG_FILE

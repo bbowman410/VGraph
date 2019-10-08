@@ -47,11 +47,13 @@ for d in `ls $REPO_DIR`; do
 done
 
 # Use Joern to parse the directory
-
 echo "Parsing $VULN_PATCH_DIR"
-#$JOERN $VULN_PATCH_DIR # generates a parsed directory containing our parsed data
+$JOERN $VULN_PATCH_DIR # generates a parsed directory containing our parsed data
+
+# Rename parsed dir so it doesn't get confuseled 
+mv parsed parsed_mine
 
 # Generating graphs and extracting code
 echo "Generating vuln patch graph database..."
-python convert_parsed.py $VULN_PATCH_DIR parsed $VULN_PATCH_GRAPH_DIR
+python convert_parsed.py $VULN_PATCH_DIR parsed_mine $VULN_PATCH_GRAPH_DIR
 
