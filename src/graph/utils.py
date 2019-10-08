@@ -131,11 +131,18 @@ def load_vgraph_db(root):
                     for func in os.listdir('/'.join([root,repo,cve,hsh,f])):
                         if func.endswith('_pvg.pkl'):
                             # Found vGraph
+<<<<<<< HEAD
                             func_root = str(func[:-8])
                             cvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'cvg.pkl'),'rb'))
                             pvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'pvg.pkl'),'rb'))
                             nvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'nvg.pkl'),'rb'))
                             vec=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'vec.pkl'),'rb'))
+=======
+                            func_root = str(func[:-len('_pvg.pkl')])
+                            cvg=pkl.load(open("%s/%s/%s/%s/%s/%s_%s"%(root,repo,cve,hsh,f,func_root,'cvg.pkl'),'rb'))
+                            pvg=pkl.load(open('%s/%s/%s/%s/%s/%s_%s'%(root,repo,cve,hsh,f,func_root,'pvg.pkl'),'rb'))
+                            nvg=pkl.load(open('%s/%s/%s/%s/%s/%s_%s'%(root,repo,cve,hsh,f,func_root,'nvg.pkl'),'rb'))
+>>>>>>> d5735472b322e0ec3801c97716824f8425089b96
                             vgraph_db.append({
                                 'repo':repo,
                                 'cve':cve,
