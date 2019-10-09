@@ -6,7 +6,7 @@ import pickle as pkl
 from src.graph.utils import load_vgraph_db, load_target_db
 from src.matching.triplet_match import *
 
-PRINT_UNK=False
+PRINT_UNK=True
 # This script will run a set of evaluations to test how well vGraph is doing.
 # Additionally it will check to see if any other tools exist to compare with(if they are installed).
 # The general workflow goes as follows:
@@ -59,10 +59,11 @@ def eval_vgraph(vgraph_db, target_db, gt):
         for vg in vgraph_db:
             vg_vec = np.array(vg['vec']) 
             if np.square(vg_vec-t_vec).mean() < 50.:
+                #cvg_score, pvg_score, nvg_score = triplet_match_exact(vg, t_trips)
                 cvg_score, pvg_score, nvg_score = triplet_match_approx(vg, t_trips)
                 #if cvg_score > CVG_THRESH and pvg_score > PVG_THRESH and nvg_score < NVG_THRESH:
                 # .. what happens if we try just pvg/nvg?
-                if pvg_score > PVG_THRESH and nvg_score < NVG_THRESH:
+                if pvg_score > PVG_THRESH and nvg_score < pvg_score:
                     # we have a hit
                     tg['hits'].append(vg)
             else:
@@ -218,8 +219,8 @@ def eval_vgraph(vgraph_db, target_db, gt):
                    before_src = tg['path'].replace('/graph/', '/code/')
                    before_src = before_src.replace('.gpickle','.c')
                    vuln_src = (root + '/' + func).replace('/graph/','/code/')
-                   vul_src = vuln_src.replace('.gpickle','.c')
-                   if filecmp.cmp(after_src, patch_src):
+                   vuln_src = vuln_src.replace('.gpickle','.c')
+                   if filecmp.cmp(before_src, vuln_src):
                        # found match
                        is_same = True
                        break

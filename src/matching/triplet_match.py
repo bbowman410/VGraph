@@ -20,14 +20,13 @@ def approx_overlap(src_trips, target_trips):
     match_score = 0.
     already_matched = []
     completed=0
-    
     for (first, rela, second) in src_trips:
         local_max = 0
         local_match = None
         for (tg_first, tg_rela, tg_second) in target_trips:
 
-            if (tg_first, tg_rela, tg_second) in already_matched:
-                continue # bring down to nlogn complexity
+            #if (tg_first, tg_rela, tg_second) in already_matched:
+            #    continue # bring down to nlogn complexity
 
             if rela == tg_rela: # same edge type required
                 if first == tg_first: # if equal don't do expensive sequence matching
@@ -44,20 +43,19 @@ def approx_overlap(src_trips, target_trips):
                     score_second=float(len(score_second))/float((len(set(second).union(set(tg_second)))))
 
                 # check if they are both over match threshold
-                if score_first > APPROX_THRESH and score_second > APPROX_THRESH:
-                    score_avg = (score_first + score_second) / 2.
-                    if score_avg > local_max:
-                        local_max = score_avg
-                        local_match = (tg_first, tg_rela, tg_second)
-
+                #if score_first > APPROX_THRESH and score_second > APPROX_THRESH:
+                score_avg = (score_first + score_second) / 2.
+                if score_avg > APPROX_THRESH and score_avg > local_max:
+                    local_max = score_avg
+                    local_match = (tg_first, tg_rela, tg_second)
+  
         if local_match: # Found a match for this src node
             match_score += local_max
             already_matched.append(local_match)
         completed += 1
-        if 1.*(len(src_trips)-completed) + match_score < 50:
+        if (1.*(len(src_trips)-completed) + match_score)/len(src_trips) < .50:
             # Even if rest of triples found a perfect match, no way to get abouve 50%
             # so we break
-            print("Early stopping...")
             break 
 
     # at most match_score would be +1 for each trip in src_trips
