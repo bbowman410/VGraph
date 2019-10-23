@@ -6,6 +6,22 @@ import pickle as pkl
 from src.graph.utils import load_vgraph_db, load_target_db
 from src.matching.triplet_match import *
 
+from multiprocessing import Pool,Process, Queue, SimpleQueue
+import time
+
+def decision_function(cvg_score, pvg_score, nvg_score):
+    return cvg_score > CVG_THRESH and pvg_score > PVG_THRESH and pvg_score > nvg_score
+
+def consume(work):
+    (target_id, vg, t_trips, match_mode) = work
+    if match_mode == 'exact':
+        cvg_score, pvg_score, nvg_score = triplet_match_exact(vg, t_trips)
+    else: # is 'approx'
+        cvg_score, pvg_score, nvg_score = triplet_match_approx(vg, t_trips)
+    return (target_id, vg, cvg_score, pvg_score, nvg_score)
+
+
+
 PRINT_UNK=True
 # This script will run a set of evaluations to test how well vGraph is doing.
 # Additionally it will check to see if any other tools exist to compare with(if they are installed).
@@ -26,15 +42,22 @@ def generate_ground_truth(target_graphs):
     NUM_PATCH=0
     NUM_BEFORE=0
     NUM_AFTER=0
+   
     for g in target_graphs:
-        if '/vuln/' in g['path']:
+        repo,cve,t,hash,f,_,_=g['path'].split('/')[-7:]
+        func=g['base_name'] 
+        
+        
+        if t == 'vuln':
             NUM_VULN += 1
-        elif '/patch/' in g['path']:
+        elif t == 'patch':
             NUM_PATCH += 1
-        elif '/before/' in g['path']:
+        elif t == 'before':
             NUM_BEFORE += 1
-        elif '/after/' in g['path']:
+        elif t == 'after':
             NUM_AFTER += 1
+
+
     print("Done! Ground truth stats:")
     print("NUM_VULN: %d" % NUM_VULN)
     print("NUM_PATCH: %d" % NUM_PATCH)
@@ -44,26 +67,66 @@ def generate_ground_truth(target_graphs):
     print("TOT_NOT_VULN: %d" % (NUM_PATCH + NUM_AFTER))
     return NUM_VULN, NUM_PATCH, NUM_BEFORE, NUM_AFTER
 
-def eval_vgraph(vgraph_db, target_db, gt):
-    CVG_THRESH=50
-    PVG_THRESH=50
-    NVG_THRESH=50
-    # Loop through target graphs.  Get any vGraph hits and evaluate for truthiness
-    hits={}
+def get_hits_multi(vgraph_db, target_db):
     skipped=0
+    #submitted=0
+    # start our worker procs
+    #in_queue = Queue() # one input queue
+    #out_queue = Queue()
+    #workers = []
+    #for i in range(4):
+    #    oq = Queue()
+    #    p = Process(target=consumer, args=(in_queue, oq,))
+    #    p.daemon = True
+    #    p.start()
+    #    workers.append((p,oq))
+    print("Filtering based on characteristic vector...")
+    work=[]
     pbar = tqdm(total=len(target_db)*len(vgraph_db))
-    for tg in target_db:
+    for i, tg in enumerate(target_db):
         t_trips = tg['triples']
         t_vec = np.array(tg['vec'])
         tg['hits'] = [] # place to put hits
         for vg in vgraph_db:
             vg_vec = np.array(vg['vec']) 
-            if np.square(vg_vec-t_vec).mean() < 50.:
-                #cvg_score, pvg_score, nvg_score = triplet_match_exact(vg, t_trips)
-                cvg_score, pvg_score, nvg_score = triplet_match_approx(vg, t_trips)
+            # simple mean squared error calculation as a filter
+            if np.square(vg_vec-t_vec).mean() < 500.:
+                work.append((i,vg, t_trips, MATCH_MODE)) 
+                #in_queue.put((i,vg, t_trips, MATCH_MODE)) 
+                #submitted += 1
+            else:
+                skipped+=1
+            pbar.update(1)
+    pbar.close()
+    print("Work size: %d" % len(work))
+    print("Applying pool...")
+    p = Pool(NUM_PROCS)
+    res = p.map(consume, work)
+    print("done..")
+
+    for r in res:
+        (target_id, vg, cvg_score, pvg_score, nvg_score) = r
+        if decision_function(cvg_score, pvg_score, nvg_score):
+            target_db[target_id]['hits'].append(vg)
+
+
+def get_hits(vgraph_db, target_db):
+    skipped=0
+    pbar = tqdm(total=len(target_db)*len(vgraph_db))
+    for i, tg in enumerate(target_db):
+        t_trips = tg['triples']
+        t_vec = np.array(tg['vec'])
+        tg['hits'] = [] # place to store our hits
+        for vg in vgraph_db:
+            vg_vec = np.array(vg['vec'])
+            if np.square(vg_vec-t_vec).mean() < 500.:
+                if MATCH_MODE is 'exact':
+                    cvg_score, pvg_score, nvg_score = triplet_match_exact(vg, t_trips)
+                else: # is 'approx'
+                    cvg_score, pvg_score, nvg_score = triplet_match_approx(vg, t_trips)
                 #if cvg_score > CVG_THRESH and pvg_score > PVG_THRESH and nvg_score < NVG_THRESH:
                 # .. what happens if we try just pvg/nvg?
-                if pvg_score > PVG_THRESH and nvg_score < pvg_score:
+                if decision_functioN(cvg_score, pvg_score, nvg_score):
                     # we have a hit
                     tg['hits'].append(vg)
             else:
@@ -71,7 +134,12 @@ def eval_vgraph(vgraph_db, target_db, gt):
             pbar.update(1)
     pbar.close()
     print("Num skipped from graph vector filter: ", skipped)
+
+
+def eval_vgraph(vgraph_db, target_db, gt):
+    # Loop through target graphs.  Get any vGraph hits and evaluate for truthiness
     # Now we score
+    print("Scoring results...")
 
     # Score all:
     TP=0.
@@ -282,12 +350,22 @@ def eval_vgraph(vgraph_db, target_db, gt):
 
 
 
+PRINT_UNK=True # used for debugging of unkown results
+CVG_THRESH=50 # not currently matching CVG.  only used for characeristic vector
+PVG_THRESH=50
+NVG_THRESH=50 # don't use this either.  just check pvg > nvg
+NUM_PROCS=40
+MATCH_MODE='exact'
+#MATCH_MODE='approx'
 
 vgraph_db = load_vgraph_db('data/vgraph_db')
 target_db = load_target_db('data/vuln_patch_graph_db')
 gt = generate_ground_truth(target_db)
-
+exit()
+start_time = time.time()
+get_hits_multi(vgraph_db, target_db)
+elapsed = time.time() - start_time
+print("Time to get hits: ", elapsed)
 # Great, now we can actually go about evaluating the different approaches.
-
 eval_vgraph(vgraph_db, target_db, gt)
 

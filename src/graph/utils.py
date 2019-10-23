@@ -101,7 +101,7 @@ def tripleize(G):
     return G_trips
 
 def vectorize(G):
-    vector_dims = [ 'FLOWS_TO','DECLARES','IS_CLASS_OF','REACHES','CONTROLS','DOM','POST_DOM','USE','DEF','IS_AST_PARENT','CallExpression','Callee','Function','ArgumentList','AssignmentExpr','File','IdentifierDeclStatement','Parameter','Symbol', 'PostIncDecOperationExpression', 'Identifier', 'IncDec', 'ExpressionStatement', 'AssignmentExpression', 'ArrayIndexing','IfStatement', 'Condition', 'AdditiveExpression', 'Argument' , 'PrimaryExpression', 'CastExpression', 'CastTarget', 'PtrMemberAccess','Statement', 'ReturnStatement', 'EqualityExpression', 'ElseStatement', 'ParameterType', 'ParameterList', 'SizeofExpression', 'IdentifierDeclType', 'UnaryOperator', 'MultiplicativeExpression', 'MemberAccess', 'FunctionDef', 'AndExpression', 'CFGEntryNode', 'UnaryOperationExpression', 'ForStatement', 'ForInit', 'ShiftExpression', 'ReturnType', 'Sizeof', 'BreakStatement', 'OrExpression', 'WhileStatement', 'SizeofOperand', 'IdentifierDecl', 'CompoundStatement', 'CFGExitNode', 'RelationalExpression', 'BitAndExpression','CFGErrorNode','ClassDef','ClassDefStatement','ConditionalExpression','ContinueStatement','Decl','DeclStmt','DoStatement','ExclusiveOrExpression','Expression','GotoStatement','InclusiveOrExpression','InitializerList','Label','SwitchStatement','UnaryExpression']
+    vector_dims = [ 'FLOWS_TO','DECLARES','IS_CLASS_OF','REACHES','CONTROLS','DOM','POST_DOM','USE','DEF','IS_AST_PARENT','CallExpression','Callee','Function','ArgumentList','AssignmentExpr','File','IdentifierDeclStatement','Parameter','Symbol', 'PostIncDecOperationExpression', 'Identifier', 'IncDec', 'ExpressionStatement', 'AssignmentExpression', 'ArrayIndexing','IfStatement', 'Condition', 'AdditiveExpression', 'Argument' , 'PrimaryExpression', 'CastExpression', 'CastTarget', 'PtrMemberAccess','Statement', 'ReturnStatement', 'EqualityExpression', 'ElseStatement', 'ParameterType', 'ParameterList', 'SizeofExpression', 'IdentifierDeclType', 'UnaryOperator', 'MultiplicativeExpression', 'MemberAccess', 'FunctionDef', 'AndExpression', 'CFGEntryNode', 'UnaryOperationExpression', 'ForStatement', 'ForInit', 'ShiftExpression', 'ReturnType', 'Sizeof', 'BreakStatement', 'OrExpression', 'WhileStatement', 'SizeofOperand', 'IdentifierDecl', 'CompoundStatement', 'CFGExitNode', 'RelationalExpression', 'BitAndExpression','CFGErrorNode','ClassDef','ClassDefStatement','ConditionalExpression','ContinueStatement','Decl','DeclStmt','DoStatement','ExclusiveOrExpression','Expression','GotoStatement','InclusiveOrExpression','InitializerList','Label','SwitchStatement','UnaryExpression'] # InfiniteForNode
     vec = [0] * len(vector_dims)
     for n in G.nodes():
         t = G.node[n]['type']
@@ -158,6 +158,8 @@ def load_target_db(root):
                 base_name = f[:-len('.gpickle')]
                 try:
                     target_graph_db.append({
+                        'dir': root,
+                        'base_name': base_name,
                         'path':"%s/%s" % (root, f),
                         #'graph': nx.read_gpickle("%s/%s" % (root, f)),
                         'triples': pkl.load(open("%s/%s" % (root, base_name + '.triples'), 'rb')),

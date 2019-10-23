@@ -64,19 +64,16 @@ def approx_overlap(src_trips, target_trips):
 
 def triplet_match_approx(vg, target_trips):
     ''' Approximate overlap function using string matching on code '''
-    #TODO lets filter on edges first since we require edge types to be same
-    # Why is this so slow???
-    #cvg_overlap = approx_overlap(vg['cvg'],target_trips)
-    #cvg_score = (cvg_overlap*100)/len(vg['cvg'])
-    #if(cvg_score > 50):
-    cvg_score=0
-    pvg_overlap = approx_overlap(vg['pvg'],target_trips)
-    pvg_score = (pvg_overlap*100)/len(vg['pvg'])
-    nvg_overlap = approx_overlap(vg['nvg'],target_trips)
-    nvg_score = (nvg_overlap*100)/len(vg['nvg'])
-    #else: # no need to do pvg, nvg
-    #    pvg_score = 0
-    #    nvg_score = 0
+    cvg_overlap = approx_overlap(vg['cvg'],target_trips)
+    cvg_score = (cvg_overlap*100)/len(vg['cvg'])
+    if(cvg_score > 50):
+        pvg_overlap = approx_overlap(vg['pvg'],target_trips)
+        pvg_score = (pvg_overlap*100)/len(vg['pvg'])
+        nvg_overlap = approx_overlap(vg['nvg'],target_trips)
+        nvg_score = (nvg_overlap*100)/len(vg['nvg'])
+    else: # no need to do pvg, nvg
+        pvg_score = 0
+        nvg_score = 0
 
     return cvg_score, pvg_score, nvg_score
 

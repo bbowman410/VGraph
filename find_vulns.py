@@ -55,7 +55,7 @@ if __name__ == "__main__":
     print("Found %d target graphs" % len(target_db))
 
     print("Loading vgraph db...")
-    vgraph_db = load_vgraph_db('./vgraph_db')
+    vgraph_db = load_vgraph_db('./data/vgraph_db')
     print("Found %d vgraphs" % len(vgraph_db))
 
     print("Finding vulns...")
