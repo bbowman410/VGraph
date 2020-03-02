@@ -81,10 +81,13 @@ def joern_to_networkx(nodes_file,  edge_file, func_names=None):
 
 def tripleize(G):
     ''' Turns a graph into a set of code -> Relationship -> Code triples '''
-    # Need to add DOM/POST_DOM relationships
     G_trips=set([])
     for n in G.nodes():
+        if G.node[n]['type'] in ['CFGEntryNode','CFGExitNode','ENTRY','EXIT']:
+            continue
         for nbor in G.neighbors(n):
+            if G.node[nbor]['type'] in ['CFGEntryNode','CFGExitNode','ENTRY','EXIT']:
+                continue
             if G.node[n]['code'] != '':
                 first = G.node[n]['code']
             else:
@@ -97,79 +100,27 @@ def tripleize(G):
             # Possible to have multiple edges.  Add a triplet for each
             for e in G[n][nbor].values():
                 rela=e['type']
-                G_trips.add((first,rela,second))
+                # first add pure type relationships. This is most abstract form
+                G_trips.add((G.node[n]['type'],rela,G.node[nbor]['type']))
+                # next, if we have code use it
 
-    # loop through graph again, this time building out DOM/POST_DOM rels
-    for n in G.nodes():
-        dom_nodes = set([])
-        num_changes = 0
-        
-        for nbor in G.neighbors(n):
-            for e in G[n][nbor].values():
-                if e['type'] == 'DOM':
-                    dom_nodes.add(nbor)
+                # One node set to concrete src code
+                if G.node[n]['code'] != '':
+                   G_trips.add((G.node[n]['code'],rela,G.node[nbor]['type'])) 
 
-        num_dom_nodes_before = len(dom_nodes)
-        num_dom_nodes_after = -1
-        while num_dom_nodes_before != num_dom_nodes_after:
-            num_dom_nodes_before = len(dom_nodes)
-            for dom_n in list(dom_nodes):
-                for nbor in G.neighbors(dom_n):
-                    for e in G[dom_n][nbor].values():
-                        if e['type'] == 'DOM':
-                            dom_nodes.add(nbor)
-            num_dom_nodes_after = len(dom_nodes)
+                # other node set to concrete src code
+                if G.node[nbor]['code'] != '':
+                   G_trips.add((G.node[n]['type'],rela,G.node[nbor]['code']))
 
-        # Now we should have ALL nodes dominated by n
-        if G.node[n]['code'] != '':
-            first = G.node[n]['code']
-        else:
-            first = G.node[n]['type']
-        for dom_node in dom_nodes:
-            if G.node[dom_node]['code'] != '':
-                second = G.node[dom_node]['code']
-            else:
-                second = G.node[dom_node]['type']
-            G_trips.add((first, 'DOM', second))
-
-    # Yikes now we do sam ething for POST DOM
-    for n in G.nodes():
-        post_dom_nodes = set([])
-        num_changes = 0
-
-        for nbor in G.neighbors(n):
-            for e in G[n][nbor].values():
-                if e['type'] == 'POST_DOM':
-                    post_dom_nodes.add(nbor)
-
-        num_post_dom_nodes_before = len(post_dom_nodes)
-        num_post_dom_nodes_after = -1
-        while num_post_dom_nodes_before != num_post_dom_nodes_after:
-            num_post_dom_nodes_before = len(post_dom_nodes)
-            for post_dom_n in list(post_dom_nodes):
-                for nbor in G.neighbors(post_dom_n):
-                    for e in G[post_dom_n][nbor].values():
-                        if e['type'] == 'POST_DOM':
-                            post_dom_nodes.add(nbor)
-            num_post_dom_nodes_after = len(post_dom_nodes)
-
-        # Now we should have ALL nodes dominated by n
-        if G.node[n]['code'] != '':
-            first = G.node[n]['code']
-        else:
-            first = G.node[n]['type']
-        for post_dom_node in post_dom_nodes:
-            if G.node[post_dom_node]['code'] != '':
-                second = G.node[post_dom_node]['code']
-            else:
-                second = G.node[post_dom_node]['type']
-            G_trips.add((first, 'POST_DOM', second))
-
-            
-
+                # Both nodes set to concrete src code
+                if G.node[n]['code'] != '' and G.node[nbor]['code'] != '':
+                    G_trips.add((G.node[n]['code'],rela,G.node[nbor]['code']))
+    
     return G_trips
 
+
 def vectorize(G):
+    ''' Converts a graph to a vector based on node and edge types.  Can be used for quick filtering '''
     vector_dims = [ 'FLOWS_TO','DECLARES','IS_CLASS_OF','REACHES','CONTROLS','DOM','POST_DOM','USE','DEF','IS_AST_PARENT','CallExpression','Callee','Function','ArgumentList','AssignmentExpr','File','IdentifierDeclStatement','Parameter','Symbol', 'PostIncDecOperationExpression', 'Identifier', 'IncDec', 'ExpressionStatement', 'AssignmentExpression', 'ArrayIndexing','IfStatement', 'Condition', 'AdditiveExpression', 'Argument' , 'PrimaryExpression', 'CastExpression', 'CastTarget', 'PtrMemberAccess','Statement', 'ReturnStatement', 'EqualityExpression', 'ElseStatement', 'ParameterType', 'ParameterList', 'SizeofExpression', 'IdentifierDeclType', 'UnaryOperator', 'MultiplicativeExpression', 'MemberAccess', 'FunctionDef', 'AndExpression', 'CFGEntryNode', 'UnaryOperationExpression', 'ForStatement', 'ForInit', 'ShiftExpression', 'ReturnType', 'Sizeof', 'BreakStatement', 'OrExpression', 'WhileStatement', 'SizeofOperand', 'IdentifierDecl', 'CompoundStatement', 'CFGExitNode', 'RelationalExpression', 'BitAndExpression','CFGErrorNode','ClassDef','ClassDefStatement','ConditionalExpression','ContinueStatement','Decl','DeclStmt','DoStatement','ExclusiveOrExpression','Expression','GotoStatement','InclusiveOrExpression','InitializerList','Label','SwitchStatement','UnaryExpression','InfiniteForNode']
     vec = [0] * len(vector_dims)
     for n in G.nodes():
@@ -204,6 +155,8 @@ def load_vgraph_db(root):
                             cvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'cvg.pkl'),'rb'))
                             pvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'pvg.pkl'),'rb'))
                             nvg=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'nvg.pkl'),'rb'))
+                            v=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'v.pkl'),'rb'))
+                            p=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'p.pkl'),'rb'))
                             vec=pkl.load(open(root + '/%s/%s/%s/%s/%s_%s'%(repo,cve,hsh,f,func_root,'vec.pkl'),'rb'))
                             vgraph_db.append({
                                 'repo':repo,
@@ -214,17 +167,21 @@ def load_vgraph_db(root):
                                 'cvg':cvg,
                                 'pvg':pvg,
                                 'nvg':nvg,
+                                'v':v,
+                                'p':p,
                                 'vec':vec
                             })
 
     return vgraph_db
 
-def load_target_db(root):
+def load_target_db(root, func_list=None):
     target_graph_db = []
     for root, dirs, files in os.walk(root):
         for f in files:
             if f.endswith(".gpickle"): # this is a target graph
                 base_name = f[:-len('.gpickle')]
+                if func_list and base_name not in func_list:
+                    continue
                 try:
                     target_graph_db.append({
                         'dir': root,

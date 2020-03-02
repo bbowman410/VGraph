@@ -3,6 +3,7 @@ import sys
 import csv
 import networkx as nx
 import pickle as pkl
+from tqdm import tqdm
 
 from src.graph.utils import joern_to_networkx, tripleize, vectorize
 
@@ -41,10 +42,20 @@ vuln_code_dir=sys.argv[1] # location of source code files
 parsed_dir=sys.argv[2] # Location of Joern parsed data
 output_dir=sys.argv[3] # Location to write our final database containing code, graphs
 
+repos = os.listdir(vuln_code_dir)
+all_cves = []
+for repo in repos:
+    all_cves = all_cves + os.listdir(vuln_code_dir + '/' + repo)
+
+
+
+pbar = tqdm(total=len(all_cves))
+
 # For every code repository...
 for repo in os.listdir(vuln_code_dir):
     # For every CVE...
     for cve in os.listdir(vuln_code_dir + '/' + repo):
+        pbar.update(1)
         # Inside here we have funcname, vuln, patch, before, after
 
         # Get names of functions of interest
@@ -109,4 +120,5 @@ for repo in os.listdir(vuln_code_dir):
                     write_code(just_the_func, output_dir, repo, cve, d, f, g['name'])
 
             
+pbar.close()
 

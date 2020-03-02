@@ -23,7 +23,7 @@ def gen_triplets(V,P):
     pvg=V_trips.difference(P_trips)
     nvg=P_trips.difference(V_trips)
   
-    return cvg, pvg, nvg
+    return cvg, pvg, nvg, V_trips, P_trips
 
 
 
@@ -54,6 +54,8 @@ if __name__ == "__main__":
     pvg_output_file = output_path + '/' + output_name  + "_pvg.pkl"
     nvg_output_file = output_path + '/' + output_name + "_nvg.pkl"
     cvg_output_file = output_path + '/' + output_name + "_cvg.pkl"
+    v_output_file = output_path + '/' + output_name + "_v.pkl"
+    p_output_file = output_path + '/' + output_name + "_p.pkl"
     # Vector Output
     vec_output_file = output_path + '/' + output_name + "_vec.pkl"
 
@@ -63,7 +65,7 @@ if __name__ == "__main__":
     print("V size: %d" % len(V.nodes))
     print("P size: %d" % len(P.nodes))
 
-    cvg, pvg, nvg = gen_triplets(V,P)
+    cvg, pvg, nvg, V_trips, P_trips = gen_triplets(V,P)
     vec = vectorize(V)
     # Check here to make sure we generated some meanigful information
     if len(cvg) == 0 or len(pvg) == 0 or len(nvg) == 0:
@@ -78,8 +80,8 @@ if __name__ == "__main__":
     pkl.dump(cvg, open(cvg_output_file, 'wb'))
     pkl.dump(pvg, open(pvg_output_file, 'wb'))
     pkl.dump(nvg, open(nvg_output_file, 'wb'))
-    print(vec)
-    print("Dumping vec")
+    pkl.dump(V_trips, open(v_output_file, 'wb'))
+    pkl.dump(P_trips, open(p_output_file, 'wb'))
     pkl.dump(vec, open(vec_output_file, 'wb'))
 
     # Print final statistics

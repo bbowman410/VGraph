@@ -35,7 +35,7 @@ function download_data {
   local after_commit_6mo=""
 
   # Get linux epoch time of commit
-  local timestamp=`git log -1 --pretty=format:"%ct" $commit_hash`
+  local timestamp=`git log -1 --pretty=format:"%at" $commit_hash`
 
   # Compute cutoff times for harvesting more before/after commits
   let local timestamp_1mo_before=$timestamp-2592000
@@ -106,42 +106,42 @@ function download_data {
   # If we identified any before or after commits, we download them
   # Before commits
   if [ "$before_commit" != "" ]; then
-    local before_timestamp=`git log -1 --pretty=format:"%ct" $before_commit`
+    local before_timestamp=`git log -1 --pretty=format:"%at" $before_commit`
     log "Downloading commit immediately before patch: $cve $codebase $path $funcs $before_commit"
     mkdir -p $VULN_PATCH_DIR/$codebase/$cve/before/${before_commit}_${before_timestamp}
     git show $before_commit:$path > $VULN_PATCH_DIR/$codebase/$cve/before/${before_commit}_${before_timestamp}/${curr_file}
   fi
 
   if [ "$before_commit_1mo" != "" ]; then
-    local before_timestamp_1mo=`git log -1 --pretty=format:"%ct" $before_commit_1mo`
+    local before_timestamp_1mo=`git log -1 --pretty=format:"%at" $before_commit_1mo`
     log "Downloading commit 1 month before patch: $cve $codebase $path $funcs $before_commit_1mo"
     mkdir -p $VULN_PATCH_DIR/$codebase/$cve/before/${before_commit_1mo}_${before_timestamp_1mo}
     git show $before_commit_1mo:$path > $VULN_PATCH_DIR/$codebase/$cve/before/${before_commit_1mo}_${before_timestamp_1mo}/${curr_file}
   fi
 
   if [ "$before_commit_6mo" != "" ]; then
-    local before_timestamp_6mo=`git log -1 --pretty=format:"%ct" $before_commit_6mo`
+    local before_timestamp_6mo=`git log -1 --pretty=format:"%at" $before_commit_6mo`
     log "Downloading commit 6 month before patch: $cve $codebase $path $funcs $before_commit_6mo"
     mkdir -p $VULN_PATCH_DIR/$codebase/$cve/before/${before_commit_6mo}_${before_timestamp_6mo}
     git show $before_commit_6mo:$path > $VULN_PATCH_DIR/$codebase/$cve/before/${before_commit_6mo}_${before_timestamp_6mo}/${curr_file}
   fi
   # After Commits
   if [ "$after_commit" != "" ]; then
-    local after_timestamp=`git log -1 --pretty=format:"%ct" $after_commit`
+    local after_timestamp=`git log -1 --pretty=format:"%at" $after_commit`
     log "Downloading commit immediately after patch: $cve $codebase $path $funcs $after_commit"
     mkdir -p $VULN_PATCH_DIR/$codebase/$cve/after/${after_commit}_${after_timestamp}
     git show $after_commit:$path > $VULN_PATCH_DIR/$codebase/$cve/after/${after_commit}_${after_timestamp}/${curr_file}
   fi
 
   if [ "$after_commit_1mo" != "" ]; then
-    local after_timestamp_1mo=`git log -1 --pretty=format:"%ct" $after_commit_1mo`
+    local after_timestamp_1mo=`git log -1 --pretty=format:"%at" $after_commit_1mo`
     log "Downloading commit 1 month after patch: $cve $codebase $path $funcs $after_commit_1mo"
     mkdir -p $VULN_PATCH_DIR/$codebase/$cve/after/${after_commit_1mo}_${after_timestamp_1mo}
     git show $after_commit_1mo:$path > $VULN_PATCH_DIR/$codebase/$cve/after/${after_commit_1mo}_${after_timestamp_1mo}/${curr_file}
   fi
 
   if [ "$after_commit_6mo" != "" ]; then
-    local after_timestamp_6mo=`git log -1 --pretty=format:"%ct" $after_commit_6mo`
+    local after_timestamp_6mo=`git log -1 --pretty=format:"%at" $after_commit_6mo`
     log "Downloading commit 6 month after patch: $cve $codebase $path $funcs $after_commit_6mo"
     mkdir -p $VULN_PATCH_DIR/$codebase/$cve/after/${after_commit_6mo}_${after_timestamp_6mo}
     git show $after_commit_6mo:$path > $VULN_PATCH_DIR/$codebase/$cve/after/${after_commit_6mo}_${after_timestamp_6mo}/${curr_file}
