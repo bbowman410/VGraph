@@ -1,151 +1,31 @@
-# New Readme
+# VGraph: A Robust Vulnerable Code Clone Detection System Using Code Property Triplets
 
-./mine.sh
- - crawls github
- - generates graphs w/ joern
- - converts to NetworkX
+This is the code for our paper published in EuroS&P 2020.  This tool mines GitHub for vulnerable and patched code samples, converts them to code property graphs, and ultimately to our VGraph structure which contains elements from the vulnerable code, patched code, and contextual code, for various vulnerabilities.  
 
-./gen_vgraph_db.sh
- - creates a vGraph from the vulnerable and patched code samples
+VGraphs can then be used to find new vulnerable code clones with a significant amount of modification from the original.
 
+# Preqrequesties for running the code
 
+VGraph relies on Joern to generate code property graphs.  We were using Joern v. 0.2.5 (really old by now).  If you plan to use a newer version the code may need some tweaking.  We were using the `joern-parse` utility which would skip the neo4j database stuff and just parse the code and generate the CPGs as a text file.  Once you have a suitable version of Joern installed, you need to modify the `mine.sh` file and update the path of the `JOERN` variable to point to the location of `joern-parse`.  
 
+The majority of the code is Python + Bash.  There is a requirements.txt file that can be used to install the required Python packages: `pip install -r requirements.txt`.
 
+# Running the code simple
 
+Most of the code has been streamlined into a couple of scripts:
 
-# Workflow notes
+```#> ./mine.sh```
 
-Step 1: Vulnerable and Patched Source code mining.  
- - Crawl Github looking for "CVE".  Download revisions of that file before, label as patched to that CVE.  Download revisions of that file after, label as vulnerable to that CVE.
- 
-Step 2: Graph conversion
- - Convert source code into a graph via Joern 
- 
-Step 2: vGraph Generation.
-  - Use the graph of function directly before, and directly after vulnerability to create vGraph which contains nodes, edges from both the vulnerable function and the patched function, labeled appropriately
-  
- Step 3: Vulnerability Detection
-  - Use vGraphs to identify functions likely to be vulnerable to same CVE.  This will be based on some type of graph matching algorithm.  E.g., if it contains most of edges from vulnerable function, and does not have edges to patched function, label it as vulnerable
-  
- Evaluation will be based on files mined from Github which were not used in generating the vGraph.
- 
- Additionally we will test vGraph on new source code projects and try to find some bugs.
+This will crawl github for the repositories listed in `repos.config`.  It will checkout the various repositories, and then scan through their commits looking for references to CVE numbers.  It will Then download the raw sourcecode associated with those commits, as well as historic versions from both before and after the relevent commits.  Next it will generate the graphs with Joern, and finally convert the Joern graphs to NetworkX format.
 
-# vGraph Database Generation
+The result will be a ton of useful data in the `data` directory.  There will be raw source code in directories indicating what CVE they are associated with, if they are vulnerable or patched to that particular CVE, the commit hashes which created the particular files, and more.  
 
-## Vulnerability Source Code Database Generation
+Next, we will actually build the VGraph database:
 
-First, navigate to ```vuln_src_db```.  This is the directory where we will harvest code from Github
+```#> ./gen_vgraph_db.sh```
 
-### Step 1: Configure Github Repositories
+This will scan through the `data` directory and build a VGraph for each vulnerable/patched code sample we extracted from GitHub.  The resulting VGraphs will be placed in the `data` directory in an appropriately named directory.
 
-The Github repositories that will be mined are in the file `repos.config`.  Add any repositories to the file in the format `<name> <url>`.
+Also included is an evaluation script: `evaluate_vgraph.py`, which will allow you to see how well the VGraph representation was able to detect and differentiate between the original vulnerable/patched code samples, as well as the historic versions downloaded for testing.  
 
-### Step 2: Clone Repositories
-
-Run the script `gen_repos.sh`.  This will clone all of the repositories in `repos.config`.  Make sure you have enough disk space in the current directory.
-
-### Step 3: Identify commits related to CVE numbers
-
-Run the script `gen_relevant_commits.sh`.  This will mine Github logs looking for mentions of CVE numbers.  Commit hashes will be saved to files.
-
-### Step 4: Download source code files associated with commits
-
-Run the script `gen_scr_files.sh`.  This will download the raw source code file(s) associated with a commit.  In addition, we write out the function names that were modified with each commit.  This way we know which functions are associated with the vulnerability.
-
-## Vulnerability Source Code Parsing
-
-Next, we will utilize the open source tool Joern to parse our source code.
-
-### Step 1: Install Joern
-
-Clone Joern from : https://github.com/octopus-platform/joern.  Follow the instructions in order to build the Java app.
-
-### Step 2: Parse with joern-parse
-
-Use the joern-parse tool to parse the vulnerable source code we just generated.  Provide the full path to the source code directory.
-```
-$./joern-parse /path/to/vuln_src_db
-```
-This will create a directory named `parsed` in your current working directory.  This directory contains all of the parsed content in the form of two files for each source file: nodes.csv and edges.csv.  
-
-Once this directory is built, move it into the `vuln_src_db` directory before moving onto the next step.
-
-### Step 3: Convert Parsed Output
-
-Next we will convert the .csv files generated by Joern into Python NetworkX format.  While we do that, we will also extract the original vulnerable and patched functions from the source code directly.
-
-To do this, simply run `convert_parsed.py` inside the `vuln_src_db` directory (make sure the `parsed` directory from the previous step has already been moved there.
-
-This will createa  new directory named `vuln_patch_graph_db` which contains the source code for every vulnerable/patch function, as well as the NetworkX graph representation of the Code Property Graph for that function.  The directory is laid out as folows:
-```
-vuln_patch_graph_db/<repository>/<CVE>/<vuln|patch>/<src_file_name>/<code|graph>/<function_name>.<c|gpickle>
-```
-
-## Generate vGraphs
-
-The next step is to actually build the vGraphs from the CPGs of the vulnerable and patched functions.
-
-```
-./gen_core_vuln_graphs.sh
-```
-This script will build the `vgraph_db` directory with the directory structure as follows:
-```
-vgraph_db/<repo>/<cve>/<file_name>/<function_name><extension>
-```
-The <extension> can be on of: `_nvg.gpickle` for negative vGraph, `_pvg.gpickle` for positive vGraph, or `.context_mapping` which maps the context nodes shared across both the negative vGraph and positive vGraph.  These three files combined  represent the vGraph structure.
-
-# Using vGraphs to find new vulnerabilities
-
-Now we want to use our vGraph database to hunt new vulnerabilities.  Given a source code repository `<target_src_repo>`, we must perform the following steps:
- - Use `joern-parse` utility to parse the source code and generate CPGs for all functions.
- - Convert CPGs to NetworkX format
- - perform vGraph analysis on target CPGs
- 
-## Parsing target code
-
-Parsing the target source code is the same as when we parased our vulnerable source code.  You must have joern installed and built in order to do this.
-
-```
-$ /path/to/joern/joern-parse /path/to/target_src
-```
-
-This again will create a directory called `parsed` in your current working directory.
-
-## Converting target
-
-Now we want to convert the `.csv` files into NetworkX graph format for analysis with out algorithms.  run the `gen_target_graph_db` script and provide it the location of the `parsed` directory which was output from the previous step, as well as the output directory.
-
-```
-./gen_target_graph_db.sh <parsed_directory> <output_directory>
-```
-After completion, the `output_directory` will contain the NetworkX CPGs for every function in the target codebase that was successfully parsed by Joern.
-
-# Hunting Vulnerabilities
-
-Now its time to hunt for vulnerabilities.  
-
-```
-python find_matches.py <vuln_graph_db> <target_graph_db> <result_file>
-```
-
-After completion, <result_file> will be populated with lines containing: <vgraph_id> <target_graph_id> <positive vGraph score> <negative vGraph score>.
- 
-These results can then be analyzed to find functions most likely to be vulnerable.  
-
-# Evaluating Database
-
-You may want to evaluate how well your vGraphs are performing.  What I mean by this, is you may want to make sure your vGraph and your matching algorithm are sufficiently expressive to identify new vulnerabilities without overwelmingly high false positives.  
-
-This is simple to do.  We can simply treat the vuln_patch_graph db generated previously as our target database, and perform matching against that.  We can then evaluate the output and verify that vGraphs matched higher with vulnerable graph than patch graph, and we can also see how vGraphs compare with eachother.
-
-```
-python find_matches.py <vuln_graph_db> vuln_src_db/vuln_patch_graph_db <result_file>
-```
-
-Since we know which functions are vulnerable and which are patched, we can easily generate some statistics with the included script:
-
-```
-python vgraph_stats.py <result_file>
-```
 
