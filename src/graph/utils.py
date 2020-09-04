@@ -29,6 +29,7 @@ def joern_to_networkx(nodes_file,  edge_file, func_names=None):
     edge_list = joern_edge_to_edgelist(edge_file)
 
     graphs = []
+    total_funcs_parsed = 0
     with open(nodes_file, 'r') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='\t')
         first_line = True
@@ -40,6 +41,7 @@ def joern_to_networkx(nodes_file,  edge_file, func_names=None):
                 first_line = False
                 continue
             if row[2] == "Function":
+                total_funcs_parsed += 1
                 if processing_func: # New function so stop previous function processing
                     # add edges
                     for src_n in curr_meta['graph'].nodes():
@@ -77,45 +79,30 @@ def joern_to_networkx(nodes_file,  edge_file, func_names=None):
             graphs.append(curr_meta)
             processing_func = False
     # now we have processed both the nodes.csv and edges.csv for this source code file
-    return graphs
+    return graphs, total_funcs_parsed
 
 def tripleize(G):
     ''' Turns a graph into a set of code -> Relationship -> Code triples '''
     G_trips=set([])
-    for n in G.nodes():
-        if G.node[n]['type'] in ['CFGEntryNode','CFGExitNode','ENTRY','EXIT']:
+
+    for n1, n2, k in G.edges(keys=True):
+        if G.node[n1]['type'] in ['CFGEntryNode','CFGExitNode','ENTRY','EXIT']:
             continue
-        for nbor in G.neighbors(n):
-            if G.node[nbor]['type'] in ['CFGEntryNode','CFGExitNode','ENTRY','EXIT']:
-                continue
-            if G.node[n]['code'] != '':
-                first = G.node[n]['code']
-            else:
-                first = G.node[n]['type']
-            if G.node[nbor]['code'] != '':
-                second = G.node[nbor]['code']
-            else:
-                second = G.node[nbor]['type']
-
-            # Possible to have multiple edges.  Add a triplet for each
-            for e in G[n][nbor].values():
-                rela=e['type']
-                # first add pure type relationships. This is most abstract form
-                G_trips.add((G.node[n]['type'],rela,G.node[nbor]['type']))
-                # next, if we have code use it
-
-                # One node set to concrete src code
-                if G.node[n]['code'] != '':
-                   G_trips.add((G.node[n]['code'],rela,G.node[nbor]['type'])) 
-
-                # other node set to concrete src code
-                if G.node[nbor]['code'] != '':
-                   G_trips.add((G.node[n]['type'],rela,G.node[nbor]['code']))
-
-                # Both nodes set to concrete src code
-                if G.node[n]['code'] != '' and G.node[nbor]['code'] != '':
-                    G_trips.add((G.node[n]['code'],rela,G.node[nbor]['code']))
-    
+        if G.node[n2]['type'] in ['CFGEntryNode','CFGExitNode','ENTRY','EXIT']:
+            continue
+        relationship=G[n1][n2][k]['type']
+        # first add pure type relationships. This is most abstract form
+        G_trips.add((G.node[n1]['type'],relationship,G.node[n2]['type']))
+        # One node set to concrete src code
+        if G.node[n1]['code'] != '':
+            G_trips.add((G.node[n1]['code'],relationship,G.node[n2]['type'])) 
+        # Other node set to concrete src code
+        if G.node[n2]['code'] != '':
+            G_trips.add((G.node[n1]['type'],relationship,G.node[n2]['code']))
+        # Both nodes set to concrete src code
+        if G.node[n1]['code'] != '' and G.node[n2]['code'] != '':
+            G_trips.add((G.node[n1]['code'],relationship,G.node[n2]['code']))
+        
     return G_trips
 
 

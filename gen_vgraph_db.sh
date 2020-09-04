@@ -1,5 +1,5 @@
 # This function will find a CPG of patch and vuln function and generate the core graphs and nodes
-MAX_NUM_PROCS=20
+MAX_NUM_PROCS=4
 LOG_FILE='gen_vgraph_db.log'
 VULN_PATCH_DB='data/vuln_patch_graph_db'
 VGRAPH_DB='data/vgraph_db'

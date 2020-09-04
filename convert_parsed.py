@@ -51,6 +51,7 @@ for repo in repos:
 
 pbar = tqdm(total=len(all_cves))
 
+graphs_written=0
 # For every code repository...
 for repo in os.listdir(vuln_code_dir):
     # For every CVE...
@@ -104,7 +105,6 @@ for repo in os.listdir(vuln_code_dir):
         #  1)  Find those functions in parsed directory
         #  2)  Build Networkx graph from .csv files
         #  3)  Extract source code of specific functions from orig source code
-   
         for (f_names, d) in [(vuln_file_names, 'vuln'),
                 (patch_file_names, 'patch'),
                 (before_file_names, 'before'),
@@ -112,13 +112,17 @@ for repo in os.listdir(vuln_code_dir):
             for f in f_names:
                 parsed_file_nodes = "%s/%s/%s/%s/%s/%s/nodes.csv" % (parsed_dir,vuln_code_dir,repo,cve,d,f)
                 parsed_file_edges = "%s/%s/%s/%s/%s/%s/edges.csv" % (parsed_dir,vuln_code_dir,repo,cve,d,f)
-                graphs = joern_to_networkx(parsed_file_nodes, parsed_file_edges, func_names=function_names)
+                graphs, num  = joern_to_networkx(parsed_file_nodes, parsed_file_edges, func_names=function_names)
+                print(parsed_file_nodes, num)
                 # Now need to write out data
                 for g in graphs:
+                    graphs_written += 1
                     write_graph(g['graph'], output_dir, repo, cve, d, f, g['name'])
                     just_the_func = extract_func("%s/%s/%s/%s/%s" % (vuln_code_dir,repo,cve,d,f), 'to_file', g['location'])
                     write_code(just_the_func, output_dir, repo, cve, d, f, g['name'])
 
             
 pbar.close()
+
+print(graphs_written)
 

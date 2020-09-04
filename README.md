@@ -1,3 +1,18 @@
+# New Readme
+
+./mine.sh
+ - crawls github
+ - generates graphs w/ joern
+ - converts to NetworkX
+
+./gen_vgraph_db.sh
+ - creates a vGraph from the vulnerable and patched code samples
+
+
+
+
+
+
 # Workflow notes
 
 Step 1: Vulnerable and Patched Source code mining.  
