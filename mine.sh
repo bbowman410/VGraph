@@ -5,7 +5,16 @@ COMMIT_GREP_STRING='CVE-20'
 VULN_PATCH_DIR=`pwd`"/data/vuln_patch_src_db"
 VULN_PATCH_GRAPH_DIR=`pwd`"/data/vuln_patch_graph_db"
 SCRATCH_FILE=`pwd`"/mine.scratch"
-JOERN='/mnt/raid0_huge/bbowman/joern_testing/joern/joern-parse'
+JOERN="path-to-joern-parse"
+
+if [ "${JOERN}" == "path-to-joern-parse" ]; then
+    echo "You need to edit this script to tell it where the joern-parse executable is."
+    echo "Edit the script and enter this as the JOERN variable at top of the file."
+    exit
+fi
+exit
+
+
 
 source src/code/gen_src_files.sh
 
